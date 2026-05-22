@@ -1,0 +1,6 @@
+smbus2>=0.4.2
+spidev>=3.6
+RPi.GPIO>=0.7.1
+pyserial>=3.5
+numpy>=1.21.0
+PyYAML>=6.0
