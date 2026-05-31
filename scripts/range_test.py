@@ -1,4 +1,4 @@
-import serial, time, datetime, threading
+import serial, time, threading
 
 SENSOR   = "/dev/ttyUSB0"
 RADIO    = "/dev/ttyUSB1"
@@ -21,13 +21,15 @@ radio  = serial.Serial(RADIO,  BAUD, timeout=1)
 threading.Thread(target=reader, args=(sensor,), daemon=True).start()
 
 seq = 0
+start = time.monotonic()
 print(f"Sending every {INTERVAL}s -- Ctrl-C to stop")
 try:
     while True:
         time.sleep(INTERVAL)
         if latest["line"]:
             seq += 1
-            ts  = datetime.datetime.utcnow().strftime("%H:%M:%S")
+            elapsed = int(time.monotonic() - start)
+            ts  = f"+{elapsed//60}m{elapsed%60}s"
             msg = f"BUOY1 #{seq} {ts} {latest['line']}\n"
             radio.write(msg.encode())
             radio.flush()
