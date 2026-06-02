@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx creator="StravaGPX" version="1.1" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+ <trk>
+  <name>buoy dunk</name>
+  <type>swimming</type>
+  <trkseg>
+   <trkpt lat="37.8068740" lon="-122.4237540">
+    <ele>0.3</ele>
+   </trkpt>
+   <trkpt lat="37.8071470" lon="-122.4244730">
+    <ele>-1.5</ele>
+   </trkpt>
+   <trkpt lat="37.8073560" lon="-122.4249160">
+    <ele>-1.8</ele>
+   </trkpt>
+   <trkpt lat="37.8075910" lon="-122.4253570">
+    <ele>-2.1</ele>
+   </trkpt>
+   <trkpt lat="37.8081060" lon="-122.4257980">
+    <ele>-2.6</ele>
+   </trkpt>
+   <trkpt lat="37.8083610" lon="-122.4261270">
+    <ele>-3.7</ele>
+   </trkpt>
+   <trkpt lat="37.8087290" lon="-122.4263360">
+    <ele>-4.1</ele>
+   </trkpt>
+   <trkpt lat="37.8091110" lon="-122.4262720">
+    <ele>-5.7</ele>
+   </trkpt>
+   <trkpt lat="37.8095410" lon="-122.4259040">
+    <ele>-5.0</ele>
+   </trkpt>
+   <trkpt lat="37.8098280" lon="-122.4255180">
+    <ele>-4.8</ele>
+   </trkpt>
+   <trkpt lat="37.8098620" lon="-122.4254870">
+    <ele>-4.8</ele>
+   </trkpt>
+   <trkpt lat="37.8100690" lon="-122.4249770">
+    <ele>-3.4</ele>
+   </trkpt>
+   <trkpt lat="37.8102110" lon="-122.4244150">
+    <ele>-3.1</ele>
+   </trkpt>
+   <trkpt lat="37.8102690" lon="-122.4239950">
+    <ele>-5.0</ele>
+   </trkpt>
+   <trkpt lat="37.8093350" lon="-122.4222430">
+    <ele>-5.4</ele>
+   </trkpt>
+   <trkpt lat="37.8093470" lon="-122.4221340">
+    <ele>-5.8</ele>
+   </trkpt>
+   <trkpt lat="37.8092900" lon="-122.4220400">
+    <ele>-5.7</ele>
+   </trkpt>
+   <trkpt lat="37.8092550" lon="-122.4218580">
+    <ele>-6.0</ele>
+   </trkpt>
+   <trkpt lat="37.8089180" lon="-122.4219000">
+    <ele>-4.6</ele>
+   </trkpt>
+   <trkpt lat="37.8085010" lon="-122.4219280">
+    <ele>-3.0</ele>
+   </trkpt>
+   <trkpt lat="37.8077780" lon="-122.4230890">
+    <ele>-2.7</ele>
+   </trkpt>
+   <trkpt lat="37.8078440" lon="-122.4232380">
+    <ele>-2.8</ele>
+   </trkpt>
+   <trkpt lat="37.8077450" lon="-122.4234330">
+    <ele>-2.7</ele>
+   </trkpt>
+   <trkpt lat="37.8075340" lon="-122.4238780">
+    <ele>-2.3</ele>
+   </trkpt>
+   <trkpt lat="37.8073100" lon="-122.4244190">
+    <ele>-2.0</ele>
+   </trkpt>
+   <trkpt lat="37.8072150" lon="-122.4244530">
+    <ele>-1.8</ele>
+   </trkpt>
+   <trkpt lat="37.8069460" lon="-122.4238430">
+    <ele>-0.5</ele>
+   </trkpt>
+   <trkpt lat="37.8069060" lon="-122.4237820">
+    <ele>-0.1</ele>
+   </trkpt>
+  </trkseg>
+ </trk>
+</gpx>
