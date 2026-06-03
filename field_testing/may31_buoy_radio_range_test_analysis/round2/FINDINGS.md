@@ -270,7 +270,46 @@ With the corrected position model:
 
 ---
 
-## 11. Caveats
+## 11. Post-reboot dunk test (~11:43:54 – 11:45:49 PDT)
+
+After the buoy rebooted at 11:40:47 PDT (uptime 5 s on first new packet), a controlled dunk test was performed. The receiver kept logging through it. The dunk leaves a clear fingerprint across four independent sensors — see `fig_dunk_test.png`.
+
+### Sensor signatures (dry → wet)
+
+| signal | dry baseline (11:40:47 – 11:43:30) | submerged (11:43:54 – 11:45:49) | Δ |
+|---|---:|---:|---:|
+| **Temperature** | 21–22 °C | 17.2–18.5 °C | **−2.5 °C** (hit cold bay water) |
+| **Pressure** | 101.65 kPa | 101.92 – 103.13 kPa | **+0.3 to +1.5 kPa** |
+| **Depth (pressure → water column)** | ≈ 0 cm | +2.5 to **+14.9 cm** | up to **15 cm under** |
+| **RSSI (radio)** | **−41.0 dBm** | **−82.6 dBm** | **−41.6 dB** ★ |
+| **SNR** | +6.3 dB | +5.1 dB | −1.2 dB |
+
+### The dunk-and-hold sequence
+
+Sawtooth pattern in `fig_dunk_test.png` panel 2 — the operator pushed the buoy down 3–5 times, each push going slightly deeper:
+
+```
+11:43:54   first immersion — temp drops 1.3 °C in 3 s, depth → 2.7 cm
+11:44:11   first deep push  — 8.9 cm under, pressure +0.89 kPa
+11:45:13   second push       — 9.2 cm
+11:45:19   deeper            — 14.2 cm
+11:45:38   deepest           — 14.9 cm     ★ max
+11:45:46   easing back        — 12.0 cm
+11:45:49   back at the surface — 2.5 cm, RSSI jumps from −66 → −51 dBm in 3 s
+11:46:00+  drying off         — depth ≈ 0, temp recovers, RSSI climbs to −27 dBm by 11:46:46
+```
+
+### What this tells us
+
+1. **Cleanest measurement of the antenna-immersion penalty in the dataset: −41.6 dB.**
+   Same buoy, same receiver, same distance — only the antenna goes from in-air to under salt water. This is the mechanism that dragged the swim-test signal from −20 dBm on shore to −65 dBm the moment the swim started. The dunk confirms it independently.
+2. **The radio kept working while submerged 15 cm deep.** Every dunked packet decoded cleanly. SNR stayed at +5 dB. Good evidence that the radio survives temporary immersion.
+3. **SNR holds up even when RSSI tanks.** This is the demodulator-floor effect — at RSSI > −100 dBm the SF11 demod is symbol-energy-limited, not noise-limited, so SNR reads near its ceiling regardless. RSSI is the honest measure of immersion attenuation.
+4. **Dunk start is identifiable even without the depth sensor.** Temperature drops 1.3 °C in the first 3 seconds of immersion (water cools the housing fast), and RSSI drops ~35–40 dB within the same 3-second window. Either signal alone would have flagged the moment of submersion.
+
+---
+
+## 12. Caveats
 
 - The GPX has no timestamps. The buoy's position over time during 10:55:57–11:13:04 is interpolated linearly along the outbound portion (trkpts 0 → 13). Real pacing was probably variable.
 - The receiver's antenna location is at the south beach as given (37°48′24.3″N 122°25′23.7″W). Distances are valid relative to that point.
@@ -278,7 +317,7 @@ With the corrected position model:
 
 ---
 
-## 12. Files in this folder
+## 13. Files in this folder
 
 - **`FINDINGS.md`** — this report
 - **`log_snippets.txt`** — full log excerpts shown in §5
@@ -292,6 +331,8 @@ With the corrected position model:
 - `fig_snr_by_distance.png` — SNR boxplot distribution by distance bin
 - `fig_signal_vs_range.png` — RSSI/SNR vs true range, log-distance fit
 - `fig_loss_vs_distance.png` — direct reception rate by distance bin
+- `fig_dunk_test.png` — 4-panel dunk-test time series (Temperature / Depth / Pressure / RSSI+SNR)
 - `direct_receptions.json` — raw 270 direct receptions (RSSI, SNR, packet id, source kind)
 - `annotated.json` — 270 direct receptions enriched with interpolated lat/lon and `rx_d`
 - `per_minute.json` — per-minute summary table
+- `dunk_telemetry.json` — full per-packet record across the post-reboot dunk window
