@@ -1,3 +1,17 @@
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+.apdisk
+.AppleDouble
+.LSOverride
+__MACOSX
+Icon
+Icon?
 __pycache__/
 *.py[cod]
 *$py.class

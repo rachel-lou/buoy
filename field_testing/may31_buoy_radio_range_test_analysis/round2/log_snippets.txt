@@ -1,0 +1,93 @@
+================================================================================
+SNIPPET 1: Healthy direct reception (mid-test, ~11:00 PDT, 18:00 UTC)
+================================================================================
+DEBUG | 18:00:00 1903 [RadioIf] Lora RX (id=0x4b88e1dd fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=3 Ch=0x8 encrypted len=99 rxSNR=6.25 rxRSSI=-81 hopStart=3 relay=0x8)
+DEBUG | 18:00:00 1903 [Router] decoded message (id=0x4b88e1dd fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=3 Ch=0x0 Portnum=1 rxtime=1780250400 rxSNR=6.25 rxRSSI=-81 hopSta
+INFO  | 18:00:00 1903 [Router] Received text msg from=0x4089c08, id=0x4b88e1dd, msg=BUOY1 #362 +30m15s Temperature:27.040 , Pressure:102.01400 kPa, Deep:0.032 m
+DEBUG | 18:00:00 1903 [Router] enqueue for send (id=0x4b88e1dd fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=2 Ch=0x8 encrypted len=99 rxtime=1780250400 rxSNR=6.25 rxRSSI=-8
+DEBUG | 18:00:02 1905 [RadioIf] Lora RX (id=0xc4d459d9 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=3 Ch=0x8 encrypted len=98 rxSNR=6 rxRSSI=-80 hopStart=3 relay=0x8)
+DEBUG | 18:00:06 1909 [RadioIf] Lora RX (id=0x717889df fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=3 Ch=0x8 encrypted len=99 rxSNR=6 rxRSSI=-82 hopStart=3 relay=0x8)
+DEBUG | 18:00:06 1909 [Router] decoded message (id=0x717889df fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=3 Ch=0x0 Portnum=1 rxtime=1780250406 rxSNR=6 rxRSSI=-82 hopStart=
+INFO  | 18:00:06 1909 [Router] Received text msg from=0x4089c08, id=0x717889df, msg=BUOY1 #363 +30m20s Temperature:26.970 , Pressure:102.07600 kPa, Deep:0.038 m
+DEBUG | 18:00:07 1910 [Router] enqueue for send (id=0x717889df fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=2 Ch=0x8 encrypted len=99 rxtime=1780250406 rxSNR=6 rxRSSI=-82 h
+DEBUG | 18:00:10 1913 [RadioIf] Lora RX (id=0xd6ab6ddb fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=3 Ch=0x8 encrypted len=99 rxSNR=5.75 rxRSSI=-71 hopStart=3 relay=0x8)
+DEBUG | 18:00:11 1914 [RadioIf] Lora RX (id=0x0cc2cde2 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=3 Ch=0x8 encrypted len=99 rxSNR=6.25 rxRSSI=-84 hopStart=3 relay=0x8)
+DEBUG | 18:00:11 1914 [Router] decoded message (id=0x0cc2cde2 fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=3 Ch=0x0 Portnum=1 rxtime=1780250411 rxSNR=6.25 rxRSSI=-84 hopSta
+INFO  | 18:00:11 1914 [Router] Received text msg from=0x4089c08, id=0xcc2cde2, msg=BUOY1 #365 +30m30s Temperature:27.010 , Pressure:101.98100 kPa, Deep:0.029 m
+DEBUG | 18:00:11 1914 [Router] enqueue for send (id=0x0cc2cde2 fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=2 Ch=0x8 encrypted len=99 rxtime=1780250411 rxSNR=6.25 rxRSSI=-8
+DEBUG | 18:00:15 1918 [RadioIf] Lora RX (id=0x717889df fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=3 Ch=0x8 encrypted len=99 rxSNR=5.75 rxRSSI=-80 hopStart=3 relay=0x8)
+DEBUG | 18:00:15 1918 [Router] enqueue for send (id=0x717889df fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=2 Ch=0x8 encrypted len=99 rxSNR=5.75 rxRSSI=-80 hopStart=3 relay
+
+================================================================================
+SNIPPET 2: Last DIRECT reception of buoy (11:13:04 PDT = 18:13:04 UTC)
+================================================================================
+DEBUG | 18:13:04 2687 [RadioIf] Lora RX (id=0x9625e316 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=3 Ch=0x8 encrypted len=99 rxSNR=6 rxRSSI=-89 hopStart=3 relay=0x8)
+INFO  | 18:13:04 2687 [Router] Received text msg from=0x4089c08, id=0x9625e316, msg=BUOY1 #519 +43m22s Temperature:29.870 , Pressure:101.71200 kPa, Deep:0.001 m
+DEBUG | 18:13:06 2689 [RadioIf] Lora RX (id=0xb4f7a313 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=3 Ch=0x8 encrypted len=99 rxSNR=4.5 rxRSSI=-92 hopStart=3 relay=0x8)
+DEBUG | 18:13:09 2692 [RadioIf] Lora RX (id=0x11f9ab14 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=3 Ch=0x8 encrypted len=99 rxSNR=5.75 rxRSSI=-88 hopStart=3 relay=0x8)
+
+================================================================================
+SNIPPET 3: Receiver TX queue draining OLD packets after direct link failed
+(seqs out of order — these are queued retransmits, not new receptions)
+================================================================================
+DEBUG | 18:13:13 2696 [RadioIf] Started Tx (id=0x26b11e41 fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=2 Ch=0x8 encrypted len=99 rxtime=1780250648 rxSNR=4.25 rxRSSI=-90 hopS
+DEBUG | 18:13:28 2711 [RadioIf] Started Tx (id=0xac216a47 fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=2 Ch=0x8 encrypted len=99 rxtime=1780250663 rxSNR=5.75 rxRSSI=-90 hopS
+DEBUG | 18:13:45 2728 [RadioIf] Started Tx (id=0x4c589248 fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=2 Ch=0x8 encrypted len=99 rxtime=1780250668 rxSNR=5.5 rxRSSI=-84 hopSt
+DEBUG | 18:13:52 2735 [RadioIf] Started Tx (id=0x43fbd273 fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=2 Ch=0x8 encrypted len=99 rxtime=1780250775 rxSNR=4.5 rxRSSI=-92 hopSt
+DEBUG | 18:14:11 2754 [RadioIf] Started Tx (id=0x3bd0de7d fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=2 Ch=0x8 encrypted len=99 rxtime=1780250801 rxSNR=5 rxRSSI=-92 hopStar
+DEBUG | 18:14:26 2769 [RadioIf] Started Tx (id=0x06fc168a fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=2 Ch=0x8 encrypted len=99 rxtime=1780250835 rxSNR=4.25 rxRSSI=-98 hopS
+DEBUG | 18:14:33 2776 [RadioIf] Started Tx (id=0x271d8a98 fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=2 Ch=0x8 encrypted len=98 rxtime=1780250871 rxSNR=5.75 rxRSSI=-97 hopS
+DEBUG | 18:14:41 2784 [RadioIf] Started Tx (id=0xc6ebb29e fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=2 Ch=0x8 encrypted len=99 rxtime=1780250894 rxSNR=-1.25 rxRSSI=-102 ho
+  ... (more queued retransmits omitted)
+
+================================================================================
+SNIPPET 4: RELAYED 9c08 packets received through neighbor mesh nodes
+(relay=0x3c, 0x27, etc. — buoy was still alive, heard via mesh)
+================================================================================
+DEBUG | 18:13:16 2699 [RadioIf] Lora RX (id=0x26b11e41 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=1 Ch=0x8 encrypted len=99 rxSNR=-11 rxRSSI=-120 hopStart=3 relay=0x27)
+DEBUG | 18:13:17 2700 [RadioIf] Lora RX (id=0x26b11e41 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=1 Ch=0x8 encrypted len=99 rxSNR=-1.5 rxRSSI=-108 hopStart=3 relay=0x3c)
+DEBUG | 18:13:31 2714 [RadioIf] Lora RX (id=0xac216a47 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=1 Ch=0x8 encrypted len=99 rxSNR=-2.5 rxRSSI=-111 hopStart=3 relay=0x3c)
+DEBUG | 18:13:47 2730 [RadioIf] Lora RX (id=0x4c589248 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=1 Ch=0x8 encrypted len=99 rxSNR=-3 rxRSSI=-108 hopStart=3 relay=0x3c)
+DEBUG | 18:13:50 2733 [RadioIf] Lora RX (id=0x4c589248 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=0 Ch=0x8 encrypted len=99 rxSNR=-13.25 rxRSSI=-123 hopStart=3 relay=0x5b)
+DEBUG | 18:13:55 2738 [RadioIf] Lora RX (id=0x43fbd273 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=1 Ch=0x8 encrypted len=99 rxSNR=-5.25 rxRSSI=-109 hopStart=3 relay=0x3c)
+DEBUG | 18:14:14 2757 [RadioIf] Lora RX (id=0x3bd0de7d fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=1 Ch=0x8 encrypted len=99 rxSNR=-2 rxRSSI=-111 hopStart=3 relay=0x3c)
+DEBUG | 18:14:29 2772 [RadioIf] Lora RX (id=0x06fc168a fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=1 Ch=0x8 encrypted len=99 rxSNR=-2 rxRSSI=-111 hopStart=3 relay=0x3c)
+DEBUG | 18:14:43 2786 [RadioIf] Lora RX (id=0xc6ebb29e fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=1 Ch=0x8 encrypted len=99 rxSNR=-1.5 rxRSSI=-111 hopStart=3 relay=0x3c)
+DEBUG | 18:14:59 2802 [RadioIf] Lora RX (id=0xde325aa2 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=1 Ch=0x8 encrypted len=99 rxSNR=-2 rxRSSI=-105 hopStart=3 relay=0x3c)
+  ... (more relayed packets omitted)
+
+================================================================================
+SNIPPET 5: Final reception, then silence (~11:15:49 PDT = 18:15:49 UTC)
+================================================================================
+DEBUG | 18:15:30 2833 [RadioIf] Lora RX (id=0x99c8aaed fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=1 Ch=0x8 encrypted len=99 rxSNR=-9.5 rxRSSI=-119 hopStart=3 relay=0x27)
+ERROR | 18:15:31 2834 [RadioIf] Ignore received packet due to error=-7 (maybe to=0xffffffff, from=0x04089c08, flags=0x61)
+DEBUG | 18:15:32 2835 [RadioIf] Lora RX (id=0x99c8aaed fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=1 Ch=0x8 encrypted len=99 rxSNR=-7 rxRSSI=-107 hopStart=3 relay=0x3c)
+ERROR | 18:15:33 2836 [RadioIf] Ignore received packet due to error=-7 (maybe to=0xffefffff, from=0x04089c08, flags=0x60)
+DEBUG | 18:15:37 2840 [RadioIf] Started Tx (id=0x3cf8faf5 fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=2 Ch=0x8 encrypted len=99 rxtime=1780251098 rxSNR=3 rxRSSI=-101 hopSta
+DEBUG | 18:15:38 2841 [RadioIf] Started Tx (id=0x045f2701 fr=0x04089c08 to=0xffffffff, transport = 1, WantAck=0, HopLim=2 Ch=0x8 encrypted len=99 rxtime=1780251127 rxSNR=2.75 rxRSSI=-103 hop
+DEBUG | 18:15:41 2844 [RadioIf] Lora RX (id=0x3cf8faf5 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=1 Ch=0x8 encrypted len=99 rxSNR=-1.75 rxRSSI=-109 hopStart=3 relay=0x3c)
+ERROR | 18:15:42 2845 [RadioIf] Ignore received packet due to error=-7 (maybe to=0xffffffff, from=0x04089c08, flags=0x60)
+ERROR | 18:15:44 2847 [RadioIf] Ignore received packet due to error=-7 (maybe to=0xffffffff, from=0x04089c08, flags=0x60)
+DEBUG | 18:15:49 2852 [RadioIf] Lora RX (id=0x045f2701 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=1 Ch=0x8 encrypted len=99 rxSNR=-0.5 rxRSSI=-108 hopStart=3 relay=0x3c)
+ERROR | 18:15:50 2853 [RadioIf] Ignore received packet due to error=-7 (maybe to=0xffffffff, from=0x04089c08, flags=0x60)
+
+================================================================================
+SNIPPET 6: Gap of silence and buoy reboot (11:40:47 PDT = 18:40:47 UTC)
+================================================================================
+Last 9c08 sighting before silence:
+  DEBUG | 18:15:49 2852 [RadioIf] Lora RX (id=0x045f2701 fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=1 Ch=0x8 encrypted len=99 rxSNR=-0.5 rxRSSI=-108 hopStart=3 relay=0x3c)
+
+  ... ~25 minutes of silence ...
+
+First reception after silence (uptime field shows BOOT):
+  DEBUG | 18:40:47 4350 [RadioIf] Lora RX (id=0xd63a3cae fr=0x04089c08 to=0xffffffff, transport = 0, WantAck=0, HopLim=3 Ch=0x8 encrypted len=96 rxSNR=6.75 rxRSSI=-35 hopStart=3 relay=0x8)
+
+================================================================================
+SNIPPET 7: Inventory of mesh nodes that relayed 9c08 packets
+================================================================================
+relay= byte → packet count (entire log):
+  relay=0x8:  729 packets  (direct from 9c08 (originator))
+  relay=0x3c:   64 packets  (via mesh relay)
+  relay=0x27:   46 packets  (via mesh relay)
+  relay=0xbf:    1 packets  (via mesh relay)
+  relay=0x5b:    1 packets  (via mesh relay)
