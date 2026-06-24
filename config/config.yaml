@@ -1,0 +1,76 @@
+# Ocean Monitoring Buoy Configuration
+
+sensors:
+  sample_interval_seconds: 60
+  imu_sample_rate_hz: 100
+  imu_sample_duration_seconds: 30
+
+  depth_temp:
+    enabled: true
+    i2c_bus: 1
+    address: 0x76
+    fluid_density: 1029.0  # seawater kg/m^3
+    osr: 8192              # MS5837 oversampling
+
+  imu:
+    enabled: true
+    spi_bus: 0
+    spi_device: 0
+    spi_speed_hz: 1000000
+    cs_gpio: 8
+    accel_range_g: 4
+
+  mcp3008:
+    spi_bus: 0
+    spi_device: 1
+    spi_speed_hz: 1350000
+    cs_gpio: 25
+    vref: 3.3
+
+  dissolved_oxygen:
+    enabled: true
+    mcp3008_channel: 0
+    cal_voltage_mv: 1600.0      # Voltage at 100% DO saturation
+    cal_temperature_c: 25.0     # Calibration temperature
+
+  salinity:
+    enabled: true
+    mcp3008_channel: 1
+    cell_constant: 1.0          # cm^-1
+    reference_temperature_c: 25.0
+    temp_compensation_alpha: 0.02  # 2%/°C
+    circuit_gain: 1000.0        # ADC volts -> conductance scale (uS)
+
+  leak:
+    enabled: true
+    gpio: 17
+    bouncetime_ms: 200
+
+power:
+  i2c_bus: 1
+  ina219_address: 0x40
+  shunt_ohms: 0.1
+  max_expected_amps: 3.2
+  low_power_threshold_v: 11.0
+  low_power_sample_interval_seconds: 300
+
+radio:
+  device: /dev/ttyS0
+  baud: 115200
+  read_timeout_seconds: 0.5
+  heartbeat_interval_seconds: 300
+
+data:
+  db_path: /data/buoy.db
+  max_rows: 500000
+  ota_staging_path: /opt/buoy/staging/update.py
+
+watchdog:
+  device: /dev/watchdog
+  kick_interval_seconds: 30
+
+logging:
+  path: /var/log/buoy/buoy.log
+  max_bytes: 10485760   # 10 MB
+  backup_count: 5
+  level: INFO

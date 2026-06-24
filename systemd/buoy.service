@@ -1,0 +1,24 @@
+[Unit]
+Description=Ocean Monitoring Buoy
+After=network.target time-sync.target
+Wants=time-sync.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/buoy
+Environment=PYTHONUNBUFFERED=1
+Environment=BUOY_CONFIG=/etc/buoy/config.yaml
+ExecStartPre=/bin/sh -c 'if [ -f /opt/buoy/staging/update.py ]; then install -m 0644 /opt/buoy/staging/update.py /opt/buoy/src/ota_applied.py && rm -f /opt/buoy/staging/update.py; fi'
+ExecStart=/usr/bin/python3 -m src.main --config /etc/buoy/config.yaml
+Restart=always
+RestartSec=5
+WatchdogSec=120
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=buoy
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
