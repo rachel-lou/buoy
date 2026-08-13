@@ -79,8 +79,8 @@ class DataStore:
             except Exception:
                 self._conn.execute("ROLLBACK")
                 raise
-            self._prune_if_needed()
             return ids
+        self._prune_if_needed()
 
     def _prune_if_needed(self) -> int:
         """Drop oldest rows so the table size <= ``max_rows``. Returns rows deleted."""
