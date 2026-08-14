@@ -84,7 +84,7 @@ class TestDataStore(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             out_path = os.path.join(tmpdir, "out.csv")
             text = self.store.export_csv(path=out_path, sensor="depth")
-            with open(out_path, "r", encoding="utf-8") as fh:
+            with open(out_path, "r", newline="", encoding="utf-8") as fh:
                 self.assertEqual(fh.read(), text)
 
     def test_export_json(self):
@@ -98,6 +98,36 @@ class TestDataStore(unittest.TestCase):
     def test_flush_does_not_raise(self):
         self.store.write(Reading(time.time(), "wave_hs", 1.0, "m", 0))
         self.store.flush()
+
+    def test_distinct_sensors(self):
+        ts = time.time()
+        self.store.write(Reading(ts, "temperature", 1.0, "C", 0))
+        self.store.write(Reading(ts, "depth", 1.0, "m", 0))
+        self.assertEqual(self.store.distinct_sensors(), ["depth", "temperature"])
+
+    def test_summarize_aggregates_per_sensor(self):
+        ts = time.time()
+        for i in range(3):
+            self.store.write(Reading(ts + i, "temperature", float(i), "C", 0))
+        summary = self.store.summarize(sensors=["temperature"])
+        self.assertEqual(len(summary), 1)
+        row = summary[0]
+        self.assertEqual(row["count"], 3)
+        self.assertEqual(row["min_value"], 0.0)
+        self.assertEqual(row["max_value"], 2.0)
+        self.assertAlmostEqual(row["avg_value"], 1.0)
+        self.assertEqual(row["last_timestamp"], ts + 2)
+
+    def test_summarize_filters_by_time_range(self):
+        ts = time.time()
+        for i in range(5):
+            self.store.write(Reading(ts + i, "temperature", float(i), "C", 0))
+        summary = self.store.summarize(since_timestamp=ts + 2, until_timestamp=ts + 3)
+        self.assertEqual(summary[0]["count"], 2)
+
+    def test_summarize_with_empty_sensor_list_returns_nothing(self):
+        self.store.write(Reading(time.time(), "temperature", 1.0, "C", 0))
+        self.assertEqual(self.store.summarize(sensors=[]), [])
 
 
 if __name__ == "__main__":

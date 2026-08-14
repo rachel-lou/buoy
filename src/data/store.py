@@ -19,8 +19,6 @@ except (ImportError, ValueError):  # tests put src/ on sys.path directly
 DB_PATH = os.environ.get("BUOY_DB_PATH", "/data/buoy.db")
 MAX_ROWS = int(os.environ.get("BUOY_MAX_ROWS", 500_000))
 
-log = logging.getLogger(__name__)
-
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS readings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,22 +36,26 @@ CREATE INDEX IF NOT EXISTS idx_readings_sensor ON readings(sensor);
 class DataStore:
     """Thread-safe SQLite store with a fixed-row ring buffer."""
 
-    def __init__(self, path: str = DB_PATH, max_rows: int = MAX_ROWS):
-        # Create directories if they don't exist
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-
-        self._max_rows = max_rows
-        self._lock = threading.Lock()
-        self._logger = logging.getLogger(__name__)
-        self._conn = sqlite3.connect(path, check_same_thread=False)
+    def __init__(self, db_path: str = DB_PATH, logger: Optional[logging.Logger] = None, max_rows: int = MAX_ROWS):
+        self._db_path = db_path
+        self._max_rows = int(max_rows)
+        # Reentrant so _prune_if_needed() can be called from within a method
+        # that already holds the lock (e.g. write_many) without deadlocking.
+        self._lock = threading.RLock()
+        self._logger = logger or logging.getLogger(__name__)
+        if db_path != ":memory:":
+            os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
+        self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._init_schema()
-        log.info(f"DataStore initialised at {path}")
+        self._logger.info("store_initialised", extra={"module": "store", "path": db_path})
 
     def _init_schema(self) -> None:
-        self._conn.executescript(_SCHEMA)
-        self._conn.commit()
-        log.info("Database schema verified")
+        with self._lock:
+            self._conn.executescript("PRAGMA journal_mode=WAL;")
+            self._conn.executescript(_SCHEMA)
+            self._conn.commit()
+        self._logger.info("store_schema_verified", extra={"module": "store"})
 
     def write(self, reading: Reading) -> int:
         """Insert a single reading. Returns its row id."""
@@ -79,8 +81,8 @@ class DataStore:
             except Exception:
                 self._conn.execute("ROLLBACK")
                 raise
+            self._prune_if_needed()
             return ids
-        self._prune_if_needed()
 
     def _prune_if_needed(self) -> int:
         """Drop oldest rows so the table size <= ``max_rows``. Returns rows deleted."""
@@ -139,6 +141,50 @@ class DataStore:
             f"FROM readings {where} ORDER BY timestamp ASC LIMIT ?"
         )
         params.append(int(limit))
+        with self._lock:
+            cur = self._conn.execute(sql, params)
+            return [dict(row) for row in cur.fetchall()]
+
+    def distinct_sensors(self) -> List[str]:
+        """Return every sensor name that currently has at least one row."""
+        with self._lock:
+            cur = self._conn.execute("SELECT DISTINCT sensor FROM readings ORDER BY sensor")
+            return [row[0] for row in cur.fetchall()]
+
+    def summarize(
+        self,
+        since_timestamp: Optional[float] = None,
+        until_timestamp: Optional[float] = None,
+        sensors: Optional[Iterable[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return per-sensor aggregates (count/min/max/avg/last) for the given filter.
+
+        Computed with SQL aggregates over the existing timestamp/sensor indexes so a
+        multi-hour or multi-day summary costs one indexed pass instead of shipping every
+        row back to the caller -- important when the caller is about to relay the result
+        over a low-bandwidth radio link.
+        """
+        clauses: List[str] = []
+        params: List[Any] = []
+        if since_timestamp is not None:
+            clauses.append("timestamp >= ?")
+            params.append(float(since_timestamp))
+        if until_timestamp is not None:
+            clauses.append("timestamp <= ?")
+            params.append(float(until_timestamp))
+        if sensors is not None:
+            sensors = list(sensors)
+            if not sensors:
+                return []
+            clauses.append(f"sensor IN ({','.join('?' for _ in sensors)})")
+            params.extend(str(s) for s in sensors)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        sql = (
+            "SELECT sensor, unit, COUNT(*) AS count, MIN(value) AS min_value, "
+            "MAX(value) AS max_value, AVG(value) AS avg_value, "
+            "MAX(timestamp) AS last_timestamp "
+            f"FROM readings {where} GROUP BY sensor, unit ORDER BY sensor"
+        )
         with self._lock:
             cur = self._conn.execute(sql, params)
             return [dict(row) for row in cur.fetchall()]

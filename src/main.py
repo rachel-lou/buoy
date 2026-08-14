@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 from .comms import Packet
 from .comms.heartbeat import HeartbeatService
 from .comms.radio import DataRequestService, OTAService, Radio
+from .comms.textquery import TextQueryService
 from .data import DataStore
 from .sensors import Reading
 from .sensors.depth_temp import DepthTempSensor
@@ -112,6 +113,7 @@ class BuoyApp:
             read_timeout_seconds=float(radio_cfg["read_timeout_seconds"]),
         )
         self._data_service = DataRequestService(self._radio, self._store, self._logger)
+        self._text_query_service = TextQueryService(self._radio, self._store, self._logger)
         self._ota_service = OTAService(self._radio, data_cfg["ota_staging_path"], self._logger)
         self._heartbeat = HeartbeatService(
             self._radio,
@@ -332,6 +334,7 @@ class BuoyApp:
         self._watchdog.arm()
         self._radio.start()
         self._data_service.attach()
+        self._text_query_service.attach()
         self._ota_service.attach()
         self._heartbeat.start()
 

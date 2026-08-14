@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
+import zlib
 from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -129,6 +130,40 @@ class TestRadio(unittest.TestCase):
         finally:
             radio.stop()
 
+    def test_send_text_writes_plain_unwrapped_line(self):
+        module, fake = _radio_module_with_fake()
+        radio = Radio(module, _silent_logger(), device="/dev/null", baud=115200)
+        self.assertTrue(radio.send_text("ALL 2H"))
+        self.assertEqual(bytes(fake.tx), b"ALL 2H\n")
+        radio.stop()
+
+    def test_non_json_line_is_routed_to_text_handler(self):
+        module, fake = _radio_module_with_fake()
+        radio = Radio(module, _silent_logger(), device="/dev/null", baud=115200)
+        received = []
+        radio.register_text_handler(lambda t: received.append(t))
+        radio.start()
+        try:
+            fake.rx.extend(b"ALL 2H\n")
+            deadline = time.time() + 2.0
+            while time.time() < deadline and not received:
+                time.sleep(0.05)
+            self.assertEqual(received, ["ALL 2H"])
+        finally:
+            radio.stop()
+
+    def test_non_json_line_without_handler_is_ignored(self):
+        module, fake = _radio_module_with_fake()
+        radio = Radio(module, _silent_logger(), device="/dev/null", baud=115200)
+        radio.start()
+        try:
+            fake.rx.extend(b"ALL 2H\n")
+            time.sleep(0.3)
+            # No text handler registered: nothing should be transmitted back.
+            self.assertEqual(bytes(fake.tx), b"")
+        finally:
+            radio.stop()
+
 
 class TestHeartbeat(unittest.TestCase):
     def test_packet_contents(self):
@@ -184,6 +219,65 @@ class TestDataRequestService(unittest.TestCase):
         self.assertEqual(response.type, "data_response")
         self.assertEqual(response.payload["count"], 1)
         self.assertEqual(response.payload["encoding"], "zlib+base64")
+
+    def test_until_timestamp_is_forwarded_to_store(self):
+        radio = MagicMock()
+        radio.send = MagicMock(return_value=True)
+        radio.register_handler = MagicMock()
+
+        store = MagicMock()
+        store.query = MagicMock(return_value=[])
+
+        svc = DataRequestService(radio, store, _silent_logger())
+        svc.attach()
+        handler = radio.register_handler.call_args.args[1]
+
+        handler(Packet.build("data_request", {"since_timestamp": 10.0, "until_timestamp": 20.0, "sensor": "depth"}))
+        store.query.assert_called_once_with(since_timestamp=10.0, until_timestamp=20.0, sensor="depth", limit=1000)
+
+    def test_row_limit_is_capped_server_side(self):
+        radio = MagicMock()
+        radio.send = MagicMock(return_value=True)
+        radio.register_handler = MagicMock()
+
+        store = MagicMock()
+        store.query = MagicMock(return_value=[])
+
+        svc = DataRequestService(radio, store, _silent_logger(), max_query_rows=500)
+        svc.attach()
+        handler = radio.register_handler.call_args.args[1]
+
+        handler(Packet.build("data_request", {"limit": 999999}))
+        self.assertEqual(store.query.call_args.kwargs["limit"], 500)
+
+    def test_large_response_is_chunked_and_reassembles(self):
+        radio = MagicMock()
+        sent = []
+        radio.send = MagicMock(side_effect=lambda p: sent.append(p) or True)
+        radio.register_handler = MagicMock()
+
+        rows = [{"id": i, "sensor": "depth", "value": float(i)} for i in range(200)]
+        store = MagicMock()
+        store.query = MagicMock(return_value=rows)
+
+        svc = DataRequestService(radio, store, _silent_logger(), max_chunk_base64_chars=64)
+        svc.attach()
+        handler = radio.register_handler.call_args.args[1]
+
+        handler(Packet.build("data_request", {"sensor": "depth", "limit": 500}))
+        self.assertGreater(len(sent), 1)
+
+        request_ids = {p.payload["request_id"] for p in sent}
+        self.assertEqual(len(request_ids), 1)
+        chunk_count = sent[0].payload["chunk_count"]
+        self.assertEqual(chunk_count, len(sent))
+        for index, pkt in enumerate(sent):
+            self.assertEqual(pkt.payload["chunk_index"], index)
+
+        data_b64 = "".join(p.payload["data"] for p in sent)
+        decompressed = zlib.decompress(base64.b64decode(data_b64))
+        body = json.loads(decompressed)
+        self.assertEqual(body["rows"], rows)
 
 
 class TestOTAService(unittest.TestCase):
