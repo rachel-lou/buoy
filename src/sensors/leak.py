@@ -63,7 +63,7 @@ class LeakSensor(BaseSensor):
                 already = self._triggered.is_set()
                 self._triggered.set()
             self.logger.critical(
-                "leak_detected", extra={"module": self.name, "pin": self._pin}
+                "leak_detected", extra={"component": self.name, "pin": self._pin}
             )
             if not already and self._on_leak is not None:
                 try:

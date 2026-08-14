@@ -51,7 +51,7 @@ class Radio:
                 timeout=self._read_timeout,
             )
             self._logger.info(
-                "radio_open", extra={"module": "radio", "device": self._device}
+                "radio_open", extra={"component": "radio", "device": self._device}
             )
         except Exception as exc:  # noqa: BLE001
             self._serial = None
@@ -109,7 +109,7 @@ class Radio:
         except Exception as exc:  # noqa: BLE001
             self._logger.error(
                 "radio_send_failed",
-                extra={"module": "radio", "type": packet.type, "error": str(exc)},
+                extra={"component": "radio", "type": packet.type, "error": str(exc)},
             )
             return False
 
@@ -135,7 +135,7 @@ class Radio:
             return True
         except Exception as exc:  # noqa: BLE001
             self._logger.error(
-                "radio_send_text_failed", extra={"module": "radio", "error": str(exc)}
+                "radio_send_text_failed", extra={"component": "radio", "error": str(exc)}
             )
             return False
 

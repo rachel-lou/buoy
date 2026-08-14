@@ -235,7 +235,7 @@ class BuoyApp:
             return
         self._shutdown_reason = reason
         self._logger.warning(
-            "shutdown_requested", extra={"module": "main", "reason": reason}
+            "shutdown_requested", extra={"component": "main", "reason": reason}
         )
         self._stop_event.set()
 
@@ -279,7 +279,7 @@ class BuoyApp:
             except Exception as exc:  # noqa: BLE001
                 self._logger.error(
                     "sensor_read_exception",
-                    extra={"module": sensor.name, "error": str(exc)},
+                    extra={"component": sensor.name, "error": str(exc)},
                 )
         return readings
 
@@ -299,7 +299,7 @@ class BuoyApp:
         self._logger.info(
             "power",
             extra={
-                "module": "power",
+                "component": "power",
                 "voltage": power.bus_voltage,
                 "current": power.current,
                 "power": power.power,
@@ -317,7 +317,7 @@ class BuoyApp:
             self._logger.warning(
                 "low_power_mode_changed",
                 extra={
-                    "module": "main",
+                    "component": "main",
                     "low_power": self._low_power,
                     "battery_voltage": battery_v,
                 },
@@ -338,7 +338,7 @@ class BuoyApp:
         self._ota_service.attach()
         self._heartbeat.start()
 
-        self._logger.info("buoy_started", extra={"module": "main"})
+        self._logger.info("buoy_started", extra={"component": "main"})
 
         try:
             while not self._stop_event.is_set():
@@ -354,7 +354,7 @@ class BuoyApp:
                 except Exception as exc:  # noqa: BLE001
                     self._logger.error(
                         "collect_cycle_failed",
-                        extra={"module": "main", "error": str(exc)},
+                        extra={"component": "main", "error": str(exc)},
                     )
 
                 battery_v = self._record_power()
@@ -379,7 +379,7 @@ class BuoyApp:
         if not self._shutdown_reason:
             self._shutdown_reason = "normal"
         self._logger.info(
-            "shutdown_begin", extra={"module": "main", "reason": self._shutdown_reason}
+            "shutdown_begin", extra={"component": "main", "reason": self._shutdown_reason}
         )
         try:
             self._heartbeat.stop()
@@ -395,7 +395,7 @@ class BuoyApp:
             except Exception as exc:  # noqa: BLE001
                 self._logger.error(
                     "sensor_close_failed",
-                    extra={"module": sensor.name, "error": str(exc)},
+                    extra={"component": sensor.name, "error": str(exc)},
                 )
         try:
             self._adc.close()
@@ -416,7 +416,7 @@ class BuoyApp:
             self._logger.error("watchdog_disarm_failed", extra={"error": str(exc)})
         self._logger.info(
             "shutdown_complete",
-            extra={"module": "main", "reason": self._shutdown_reason},
+            extra={"component": "main", "reason": self._shutdown_reason},
         )
 
 

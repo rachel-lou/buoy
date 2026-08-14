@@ -47,13 +47,13 @@ class HardwareWatchdog:
                 self._thread.start()
                 self._logger.info(
                     "watchdog_armed",
-                    extra={"module": "watchdog", "device": self._device},
+                    extra={"component": "watchdog", "device": self._device},
                 )
                 return True
             except Exception as exc:  # noqa: BLE001
                 self._logger.error(
                     "watchdog_arm_failed",
-                    extra={"module": "watchdog", "error": str(exc)},
+                    extra={"component": "watchdog", "error": str(exc)},
                 )
                 self._fd = -1
                 self._armed = False
@@ -68,7 +68,7 @@ class HardwareWatchdog:
         except Exception as exc:  # noqa: BLE001
             self._logger.error(
                 "watchdog_kick_failed",
-                extra={"module": "watchdog", "error": str(exc)},
+                extra={"component": "watchdog", "error": str(exc)},
             )
 
     def _run(self) -> None:
@@ -91,18 +91,18 @@ class HardwareWatchdog:
                 except Exception as exc:  # noqa: BLE001
                     self._logger.error(
                         "watchdog_disarm_write_failed",
-                        extra={"module": "watchdog", "error": str(exc)},
+                        extra={"component": "watchdog", "error": str(exc)},
                     )
                 try:
                     os.close(self._fd)
                 except Exception as exc:  # noqa: BLE001
                     self._logger.error(
                         "watchdog_close_failed",
-                        extra={"module": "watchdog", "error": str(exc)},
+                        extra={"component": "watchdog", "error": str(exc)},
                     )
                 self._fd = -1
             self._armed = False
-            self._logger.info("watchdog_disarmed", extra={"module": "watchdog"})
+            self._logger.info("watchdog_disarmed", extra={"component": "watchdog"})
 
     @property
     def armed(self) -> bool:

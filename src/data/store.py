@@ -48,14 +48,14 @@ class DataStore:
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._init_schema()
-        self._logger.info("store_initialised", extra={"module": "store", "path": db_path})
+        self._logger.info("store_initialised", extra={"component": "store", "path": db_path})
 
     def _init_schema(self) -> None:
         with self._lock:
             self._conn.executescript("PRAGMA journal_mode=WAL;")
             self._conn.executescript(_SCHEMA)
             self._conn.commit()
-        self._logger.info("store_schema_verified", extra={"module": "store"})
+        self._logger.info("store_schema_verified", extra={"component": "store"})
 
     def write(self, reading: Reading) -> int:
         """Insert a single reading. Returns its row id."""
@@ -107,7 +107,7 @@ class DataStore:
                 raise
             self._logger.info(
                 "ring_buffer_pruned",
-                extra={"module": "store", "rows_deleted": excess},
+                extra={"component": "store", "rows_deleted": excess},
             )
             return excess
 

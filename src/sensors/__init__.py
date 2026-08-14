@@ -70,5 +70,5 @@ class BaseSensor:
         self._last_error = message
         self.logger.error(
             "sensor_error",
-            extra={"module": self.name, "error": message},
+            extra={"component": self.name, "error": message},
         )
