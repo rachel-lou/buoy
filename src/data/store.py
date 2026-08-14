@@ -16,6 +16,11 @@ except (ImportError, ValueError):  # tests put src/ on sys.path directly
     from sensors import Reading  # type: ignore
 
 
+DB_PATH = os.environ.get("BUOY_DB_PATH", "/data/buoy.db")
+MAX_ROWS = int(os.environ.get("BUOY_MAX_ROWS", 500_000))
+
+log = logging.getLogger(__name__)
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS readings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,28 +38,22 @@ CREATE INDEX IF NOT EXISTS idx_readings_sensor ON readings(sensor);
 class DataStore:
     """Thread-safe SQLite store with a fixed-row ring buffer."""
 
-    def __init__(
-        self,
-        db_path: str,
-        logger: logging.Logger,
-        max_rows: int = 500_000,
-    ) -> None:
-        self._db_path = db_path
-        self._logger = logger
-        self._max_rows = int(max_rows)
-        self._lock = threading.RLock()
-        if db_path != ":memory:":
-            os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
-        self._conn = sqlite3.connect(
-            self._db_path,
-            check_same_thread=False,
-            timeout=30.0,
-            isolation_level=None,  # autocommit; we manage transactions explicitly
-        )
+    def __init__(self, path: str = DB_PATH, max_rows: int = MAX_ROWS):
+        # Create directories if they don't exist
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        self._max_rows = max_rows
+        self._lock = threading.Lock()
+        self._logger = logging.getLogger(__name__)
+        self._conn = sqlite3.connect(path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        with self._lock:
-            self._conn.executescript("PRAGMA journal_mode=WAL;")
-            self._conn.executescript(_SCHEMA)
+        self._init_schema()
+        log.info(f"DataStore initialised at {path}")
+
+    def _init_schema(self) -> None:
+        self._conn.executescript(_SCHEMA)
+        self._conn.commit()
+        log.info("Database schema verified")
 
     def write(self, reading: Reading) -> int:
         """Insert a single reading. Returns its row id."""
@@ -80,8 +79,8 @@ class DataStore:
             except Exception:
                 self._conn.execute("ROLLBACK")
                 raise
-            self._prune_if_needed()
             return ids
+        self._prune_if_needed()
 
     def _prune_if_needed(self) -> int:
         """Drop oldest rows so the table size <= ``max_rows``. Returns rows deleted."""
