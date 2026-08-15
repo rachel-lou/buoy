@@ -88,22 +88,18 @@ class BuoyApp:
         )
 
         # Power monitor
-        pwr_cfg = config["power"]
-        self._power = PowerMonitor(
-            self._hw["smbus2"],
-            self._logger,
-            bus=int(pwr_cfg["i2c_bus"]),
-            address=int(pwr_cfg["ina219_address"]),
-            shunt_ohms=float(pwr_cfg["shunt_ohms"]),
-            max_expected_amps=float(pwr_cfg["max_expected_amps"]),
-        )
+        self._power = self._build_power_monitor()
 
         # Sensors
         self._depth_temp = self._build_depth_temp()
         self._imu = self._build_imu()
-        self._adc = self._build_mcp3008()
-        self._do = self._build_do()
-        self._salinity = self._build_salinity()
+        needs_adc = (
+            self._config["sensors"]["dissolved_oxygen"].get("enabled", True)
+            or self._config["sensors"]["salinity"].get("enabled", True)
+        )
+        self._adc = self._build_mcp3008() if needs_adc else None
+        self._do = self._build_do() if self._adc is not None else None
+        self._salinity = self._build_salinity() if self._adc is not None else None
         self._leak = self._build_leak()
         self._usb_depth_temp = self._build_usb_depth_temp()
 
@@ -142,6 +138,19 @@ class BuoyApp:
             self._leak.set_callback(lambda: self.request_shutdown("leak_detected"))
 
     # ---- builders ---------------------------------------------------------
+    def _build_power_monitor(self) -> Optional[PowerMonitor]:
+        cfg = self._config["power"]
+        if not cfg.get("enabled", True):
+            return None
+        return PowerMonitor(
+            self._hw["smbus2"],
+            self._logger,
+            bus=int(cfg["i2c_bus"]),
+            address=int(cfg["ina219_address"]),
+            shunt_ohms=float(cfg["shunt_ohms"]),
+            max_expected_amps=float(cfg["max_expected_amps"]),
+        )
+
     def _build_depth_temp(self) -> Optional[DepthTempSensor]:
         cfg = self._config["sensors"]["depth_temp"]
         if not cfg.get("enabled", True):
@@ -263,7 +272,7 @@ class BuoyApp:
     # ---- status / payloads ------------------------------------------------
     def _build_status_payload(self) -> Dict[str, Any]:
         uptime = time.monotonic() - self._start_time
-        power = self._power.read()
+        power = self._power.read() if self._power is not None else None
         battery_v = power.bus_voltage if power else None
         sensor_health = {s.name: bool(s.healthy) for s in self._sensors}
         return {
@@ -332,6 +341,8 @@ class BuoyApp:
         return readings
 
     def _record_power(self) -> Optional[float]:
+        if self._power is None:
+            return None
         power = self._power.read()
         if power is None:
             return None
@@ -454,11 +465,13 @@ class BuoyApp:
                     extra={"component": sensor.name, "error": str(exc)},
                 )
         try:
-            self._adc.close()
+            if self._adc is not None:
+                self._adc.close()
         except Exception as exc:  # noqa: BLE001
             self._logger.error("adc_close_failed", extra={"error": str(exc)})
         try:
-            self._power.close()
+            if self._power is not None:
+                self._power.close()
         except Exception as exc:  # noqa: BLE001
             self._logger.error("power_close_failed", extra={"error": str(exc)})
         try:

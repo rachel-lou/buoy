@@ -60,6 +60,7 @@ sensors:
     stale_after_seconds: 30
 
 power:
+  enabled: true
   i2c_bus: 1
   ina219_address: 0x40
   shunt_ohms: 0.1
