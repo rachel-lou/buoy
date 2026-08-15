@@ -9,13 +9,21 @@ sends back a short plain-text reply, chunked to fit LoRa-sized messages.
 Command grammar (case-insensitive, leading verb word optional):
 
     [GET] <sensor|ALL> <timespec> [csv]
+    [SET] INTERVAL <duration>
 
 Examples::
 
     ALL 2H                    -> summary of every sensor, last 2 hours
     TEMPERATURE 2026-08-13     -> summary of temperature readings on that UTC day
     SALINITY 6H CSV           -> raw salinity samples from the last 6 hours
+    INTERVAL 30M              -> change the buoy's collection interval to 30 minutes
     HELP                      -> usage + currently known sensor names
+
+``INTERVAL`` changes the same interval the main loop already sleeps for
+between collection cycles -- today that's just an always-on daemon's sample
+rate, but it's meant to describe how often the buoy should wake up, collect,
+and power back down once that duty-cycling exists. It's a whole-buoy setting,
+not tied to any one sensor.
 
 Replies default to a compact per-sensor summary (count/min/max/avg/last) computed
 with one SQL aggregate pass -- cheap on the Pi and tiny over the air. Raw/csv
@@ -28,9 +36,16 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .timespec import TIME_SPEC_HELP, TimeSpecError, looks_like_time_spec, parse_time_spec
+from .timespec import (
+    DURATION_HELP,
+    TIME_SPEC_HELP,
+    TimeSpecError,
+    looks_like_time_spec,
+    parse_duration,
+    parse_time_spec,
+)
 
 MAX_RAW_ROWS_PER_QUERY = 200
 TEXT_CHUNK_MAX_CHARS = 180
@@ -123,11 +138,13 @@ class TextQueryService:
         store,
         logger: logging.Logger,
         max_raw_rows: int = MAX_RAW_ROWS_PER_QUERY,
+        set_interval: Optional[Callable[[float], float]] = None,
     ) -> None:
         self._radio = radio
         self._store = store
         self._logger = logger
         self._max_raw_rows = max_raw_rows
+        self._set_interval = set_interval
 
     def attach(self) -> None:
         """Register this service as the radio's plain-text handler."""
@@ -159,6 +176,12 @@ class TextQueryService:
             tokens = tokens[1:]
         if not tokens:
             return self._usage_lines()
+
+        if tokens[0].upper() == "SET" and len(tokens) > 1 and tokens[1].upper() == "INTERVAL":
+            tokens = tokens[1:]
+        if tokens[0].upper() == "INTERVAL":
+            return self._handle_interval_command(tokens[1:])
+
         if tokens[0].upper() == "HELP":
             return self._help_lines()
 
@@ -214,15 +237,30 @@ class TextQueryService:
             lines.append(f"...capped at {self._max_raw_rows} rows; narrow the range for more detail")
         return lines
 
+    def _handle_interval_command(self, tokens: List[str]) -> List[str]:
+        if self._set_interval is None:
+            return ["interval control is not configured on this buoy"]
+        if len(tokens) != 1:
+            return [f"usage: [SET] INTERVAL <{DURATION_HELP}>", "send HELP for details"]
+        try:
+            seconds = parse_duration(tokens[0])
+        except TimeSpecError as exc:
+            return [f"bad duration: {exc}"]
+        applied = self._set_interval(seconds)
+        return [f"collection interval set to {applied:.0f}s"]
+
     def _usage_lines(self) -> List[str]:
         return [f"usage: <sensor|ALL> <{TIME_SPEC_HELP}> [csv]", "send HELP for details"]
 
     def _help_lines(self) -> List[str]:
         available = self._store.distinct_sensors()
         known = ", ".join(available) if available else "none yet"
-        return [
+        lines = [
             "Buoy query commands:",
             f"<sensor|ALL> <{TIME_SPEC_HELP}> [csv]",
             "Ex: ALL 2H | TEMPERATURE 2026-08-13 | SALINITY 6H CSV",
             f"Sensors: {known}",
         ]
+        if self._set_interval is not None:
+            lines.append(f"[SET] INTERVAL <{DURATION_HELP}> -- change collection interval")
+        return lines

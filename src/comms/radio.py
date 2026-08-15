@@ -292,6 +292,37 @@ class DataRequestService:
             self._radio.send(Packet.build("data_response", payload))
 
 
+class IntervalControlService:
+    """Answers ``set_interval`` packets by adjusting the buoy's collection
+    interval -- the scripted/JSON counterpart to the phone-facing ``INTERVAL``
+    text command handled by :class:`~comms.textquery.TextQueryService`.
+
+    ``set_interval`` is a plain callback (``seconds -> applied_seconds``)
+    rather than a sensor reference: today it just changes the main loop's
+    sleep interval, but it's meant to describe how often the buoy should
+    wake up, collect, and (eventually) power back down -- a whole-buoy
+    concept, not something owned by any one sensor.
+    """
+
+    def __init__(self, radio: Radio, set_interval: Callable[[float], float], logger: logging.Logger) -> None:
+        self._radio = radio
+        self._set_interval = set_interval
+        self._logger = logger
+
+    def attach(self) -> None:
+        """Register the handler on the radio."""
+        self._radio.register_handler("set_interval", self._handle)
+
+    def _handle(self, packet: Packet) -> None:
+        seconds = packet.payload.get("interval_seconds")
+        if seconds is None:
+            self._logger.warning("set_interval_rejected", extra={"interval_seconds": seconds})
+            self._radio.send(Packet.build("nack", {"reason": "missing_interval_seconds"}))
+            return
+        applied = self._set_interval(float(seconds))
+        self._radio.send(Packet.build("ack", {"type": "set_interval", "interval_seconds": applied}))
+
+
 class OTAService:
     """Receive OTA packets, verify a SHA-256 checksum, stage the script for next boot."""
 

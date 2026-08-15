@@ -13,7 +13,12 @@ from typing import List, Optional
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from comms.textquery import TextQueryService, chunk_lines  # noqa: E402
-from comms.timespec import TimeSpecError, looks_like_time_spec, parse_time_spec  # noqa: E402
+from comms.timespec import (  # noqa: E402
+    TimeSpecError,
+    looks_like_time_spec,
+    parse_duration,
+    parse_time_spec,
+)
 from data.store import DataStore  # noqa: E402
 from sensors import Reading  # noqa: E402
 
@@ -71,6 +76,25 @@ class TestParseTimeSpec(unittest.TestCase):
         self.assertTrue(looks_like_time_spec("2026-08-01..2026-08-03"))
         self.assertFalse(looks_like_time_spec("temperature"))
         self.assertFalse(looks_like_time_spec("all"))
+
+
+class TestParseDuration(unittest.TestCase):
+    def test_parses_each_unit(self):
+        self.assertEqual(parse_duration("5s"), 5.0)
+        self.assertEqual(parse_duration("30m"), 1800.0)
+        self.assertEqual(parse_duration("2h"), 7200.0)
+        self.assertEqual(parse_duration("1d"), 86400.0)
+
+    def test_case_insensitive(self):
+        self.assertEqual(parse_duration("2H"), 7200.0)
+
+    def test_zero_rejected(self):
+        with self.assertRaises(TimeSpecError):
+            parse_duration("0s")
+
+    def test_date_like_input_rejected(self):
+        with self.assertRaises(TimeSpecError):
+            parse_duration("2026-08-13")
 
 
 class TestChunkLines(unittest.TestCase):
@@ -204,6 +228,60 @@ class TestTextQueryService(unittest.TestCase):
         self.radio.deliver("wave_hs 1d csv")
         reply = self._reply()
         self.assertIn("capped at 5 rows", reply)
+
+
+class TestIntervalCommand(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+        self.tmp.close()
+        self.store = DataStore(self.tmp.name, _silent_logger(), max_rows=10_000)
+        self.radio = _RecordingRadio()
+
+    def tearDown(self):
+        self.store.close()
+        os.unlink(self.tmp.name)
+
+    def _reply(self) -> str:
+        return "\n".join(self.radio.sent)
+
+    def test_interval_command_applies_and_reports(self):
+        service = TextQueryService(self.radio, self.store, _silent_logger(), set_interval=lambda s: s)
+        service.attach()
+        self.radio.deliver("INTERVAL 30M")
+        self.assertIn("collection interval set to 1800s", self._reply())
+
+    def test_set_prefix_is_optional(self):
+        applied = []
+        service = TextQueryService(
+            self.radio, self.store, _silent_logger(), set_interval=lambda s: applied.append(s) or s
+        )
+        service.attach()
+        self.radio.deliver("SET INTERVAL 5M")
+        self.assertEqual(applied, [300.0])
+
+    def test_interval_without_callback_reports_unavailable(self):
+        service = TextQueryService(self.radio, self.store, _silent_logger())
+        service.attach()
+        self.radio.deliver("INTERVAL 5M")
+        self.assertIn("not configured", self._reply())
+
+    def test_bad_duration_is_reported(self):
+        service = TextQueryService(self.radio, self.store, _silent_logger(), set_interval=lambda s: s)
+        service.attach()
+        self.radio.deliver("INTERVAL tomorrow")
+        self.assertIn("bad duration", self._reply())
+
+    def test_help_mentions_interval_when_configured(self):
+        service = TextQueryService(self.radio, self.store, _silent_logger(), set_interval=lambda s: s)
+        service.attach()
+        self.radio.deliver("HELP")
+        self.assertIn("INTERVAL", self._reply())
+
+    def test_help_omits_interval_when_not_configured(self):
+        service = TextQueryService(self.radio, self.store, _silent_logger())
+        service.attach()
+        self.radio.deliver("HELP")
+        self.assertNotIn("INTERVAL", self._reply())
 
 
 if __name__ == "__main__":

@@ -15,6 +15,11 @@ Embedded data acquisition system for an autonomous ocean monitoring buoy running
 | Meshtastic LoRa node | UART /dev/ttyS0 | 115200 baud |
 | INA219 battery monitor | I2C bus 1 | 0x40 |
 
+## SSH into the pi
+
+```bash
+ssh kelp@buoy1.local
+```
 ## Install
 
 ```bash

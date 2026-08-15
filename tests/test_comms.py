@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from comms import Packet  # noqa: E402
 from comms.heartbeat import HeartbeatService  # noqa: E402
-from comms.radio import DataRequestService, OTAService, Radio  # noqa: E402
+from comms.radio import DataRequestService, IntervalControlService, OTAService, Radio  # noqa: E402
 
 
 def _silent_logger() -> logging.Logger:
@@ -278,6 +278,39 @@ class TestDataRequestService(unittest.TestCase):
         decompressed = zlib.decompress(base64.b64decode(data_b64))
         body = json.loads(decompressed)
         self.assertEqual(body["rows"], rows)
+
+
+class TestIntervalControlService(unittest.TestCase):
+    def test_valid_request_applies_and_acks(self):
+        radio = MagicMock()
+        sent = []
+        radio.send = MagicMock(side_effect=lambda p: sent.append(p) or True)
+        radio.register_handler = MagicMock()
+
+        set_interval = MagicMock(return_value=1800.0)
+        svc = IntervalControlService(radio, set_interval, _silent_logger())
+        svc.attach()
+        handler = radio.register_handler.call_args.args[1]
+
+        handler(Packet.build("set_interval", {"interval_seconds": 1800}))
+        set_interval.assert_called_once_with(1800.0)
+        self.assertEqual(sent[0].type, "ack")
+        self.assertEqual(sent[0].payload["interval_seconds"], 1800.0)
+
+    def test_missing_interval_is_nacked(self):
+        radio = MagicMock()
+        sent = []
+        radio.send = MagicMock(side_effect=lambda p: sent.append(p) or True)
+        radio.register_handler = MagicMock()
+
+        set_interval = MagicMock()
+        svc = IntervalControlService(radio, set_interval, _silent_logger())
+        svc.attach()
+        handler = radio.register_handler.call_args.args[1]
+
+        handler(Packet.build("set_interval", {}))
+        set_interval.assert_not_called()
+        self.assertEqual(sent[0].type, "nack")
 
 
 class TestOTAService(unittest.TestCase):

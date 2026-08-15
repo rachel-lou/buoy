@@ -46,6 +46,19 @@ sensors:
     gpio: 17
     bouncetime_ms: 200
 
+  # External MS5837-style depth/temp board bridged over USB-serial (CH341
+  # adapter). It free-runs and streams lines continuously; unlike the other
+  # sensors it's read on the shared sample_interval_seconds cadence via a
+  # background cache rather than converted on demand. /dev/ttyUSBn isn't
+  # stable across replugs, so it's auto-discovered by USB vendor/product ID.
+  usb_depth_temp:
+    enabled: false
+    device: auto           # or an explicit path, e.g. /dev/ttyUSB2, to override
+    vendor_id: 0x1A86       # CH341 USB-serial adapter
+    product_id: 0x7523
+    baud: 9600              # confirm with `stty -F /dev/ttyUSBn -a` if unsure
+    stale_after_seconds: 30
+
 power:
   i2c_bus: 1
   ina219_address: 0x40

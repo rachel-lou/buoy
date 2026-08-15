@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from .comms import Packet
 from .comms.heartbeat import HeartbeatService
-from .comms.radio import DataRequestService, OTAService, Radio
+from .comms.radio import DataRequestService, IntervalControlService, OTAService, Radio
 from .comms.textquery import TextQueryService
 from .data import DataStore
 from .sensors import Reading
@@ -20,9 +20,13 @@ from .sensors.dissolved_oxygen import DissolvedOxygenSensor, MCP3008Reader
 from .sensors.imu import IMUSensor
 from .sensors.leak import LeakSensor
 from .sensors.salinity import SalinitySensor
+from .sensors.usb_depth_temp import UsbDepthTempSensor
 from .utils import configure_logging, load_config
 from .utils.power import PowerMonitor
-from .utils.watchdog import HardwareWatchdog
+from .utils.watchdog import HardwareWatchdog, SystemdWatchdogNotifier
+
+MIN_SAMPLE_INTERVAL_SECONDS = 1.0
+MAX_SAMPLE_INTERVAL_SECONDS = 86400.0
 
 
 def _import_hardware_modules():
@@ -32,6 +36,7 @@ def _import_hardware_modules():
     import RPi.GPIO as GPIO  # type: ignore
     import smbus2  # type: ignore
     import serial  # type: ignore
+    import serial.tools.list_ports  # type: ignore  # noqa: F401 -- attaches .tools.list_ports
     import spidev  # type: ignore
 
     return {"GPIO": GPIO, "smbus2": smbus2, "serial": serial, "spidev": spidev}
@@ -78,6 +83,9 @@ class BuoyApp:
             device=wd_cfg["device"],
             kick_interval_seconds=float(wd_cfg["kick_interval_seconds"]),
         )
+        self._systemd_watchdog = SystemdWatchdogNotifier(
+            self._logger, interval_seconds=float(wd_cfg["kick_interval_seconds"])
+        )
 
         # Power monitor
         pwr_cfg = config["power"]
@@ -97,9 +105,12 @@ class BuoyApp:
         self._do = self._build_do()
         self._salinity = self._build_salinity()
         self._leak = self._build_leak()
+        self._usb_depth_temp = self._build_usb_depth_temp()
 
         self._sensors = [
-            s for s in (self._depth_temp, self._imu, self._do, self._salinity, self._leak)
+            s for s in (
+                self._depth_temp, self._imu, self._do, self._salinity, self._leak, self._usb_depth_temp,
+            )
             if s is not None
         ]
 
@@ -113,7 +124,12 @@ class BuoyApp:
             read_timeout_seconds=float(radio_cfg["read_timeout_seconds"]),
         )
         self._data_service = DataRequestService(self._radio, self._store, self._logger)
-        self._text_query_service = TextQueryService(self._radio, self._store, self._logger)
+        self._text_query_service = TextQueryService(
+            self._radio, self._store, self._logger, set_interval=self.set_sample_interval
+        )
+        self._interval_control_service = IntervalControlService(
+            self._radio, self.set_sample_interval, self._logger
+        )
         self._ota_service = OTAService(self._radio, data_cfg["ota_staging_path"], self._logger)
         self._heartbeat = HeartbeatService(
             self._radio,
@@ -207,10 +223,42 @@ class BuoyApp:
             bouncetime_ms=int(cfg["bouncetime_ms"]),
         )
 
+    def _build_usb_depth_temp(self) -> Optional[UsbDepthTempSensor]:
+        cfg = self._config["sensors"].get("usb_depth_temp", {})
+        if not cfg.get("enabled", False):
+            return None
+        return UsbDepthTempSensor(
+            self._hw["serial"],
+            self._logger,
+            device=cfg.get("device", "auto"),
+            vendor_id=int(cfg.get("vendor_id", 0x1A86)),
+            product_id=int(cfg.get("product_id", 0x7523)),
+            baud=int(cfg.get("baud", 9600)),
+            stale_after_seconds=float(cfg.get("stale_after_seconds", 30.0)),
+        )
+
     def _latest_temperature(self) -> Optional[float]:
         if self._depth_temp is None:
             return None
         return self._depth_temp.last_temperature_c
+
+    # ---- runtime control ---------------------------------------------------
+    def set_sample_interval(self, seconds: float) -> float:
+        """Change the normal (non-low-power) collection interval at runtime.
+
+        This is the knob that -- once the buoy is duty-cycled by external
+        power hardware instead of staying always-on -- will describe how
+        often the Pi wakes up, collects, and powers back down. For now,
+        while it stays on (e.g. for field testing), it's just the main
+        loop's sleep interval. Not persisted to config.yaml; reverts on
+        restart.
+        """
+        clamped = max(MIN_SAMPLE_INTERVAL_SECONDS, min(MAX_SAMPLE_INTERVAL_SECONDS, float(seconds)))
+        self._config["sensors"]["sample_interval_seconds"] = clamped
+        self._logger.info(
+            "sample_interval_changed", extra={"component": "main", "interval_seconds": clamped}
+        )
+        return clamped
 
     # ---- status / payloads ------------------------------------------------
     def _build_status_payload(self) -> Dict[str, Any]:
@@ -332,9 +380,13 @@ class BuoyApp:
         """Run the main loop. Returns 0 on clean exit."""
         self._install_signal_handlers()
         self._watchdog.arm()
+        self._systemd_watchdog.start()
+        if self._usb_depth_temp is not None:
+            self._usb_depth_temp.start()
         self._radio.start()
         self._data_service.attach()
         self._text_query_service.attach()
+        self._interval_control_service.attach()
         self._ota_service.attach()
         self._heartbeat.start()
 
@@ -381,6 +433,10 @@ class BuoyApp:
         self._logger.info(
             "shutdown_begin", extra={"component": "main", "reason": self._shutdown_reason}
         )
+        try:
+            self._systemd_watchdog.stop()
+        except Exception as exc:  # noqa: BLE001
+            self._logger.error("systemd_watchdog_stop_failed", extra={"error": str(exc)})
         try:
             self._heartbeat.stop()
         except Exception as exc:  # noqa: BLE001

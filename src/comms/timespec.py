@@ -18,6 +18,7 @@ _DATE_RANGE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$")
 _UNIT_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
 
 TIME_SPEC_HELP = "2h, 30m, 1d, YYYY-MM-DD, or YYYY-MM-DD..YYYY-MM-DD"
+DURATION_HELP = "5s, 30m, 2h, or 1d"
 
 
 class TimeSpecError(ValueError):
@@ -28,6 +29,19 @@ def looks_like_time_spec(token: str) -> bool:
     """Cheap format check, used to tell a time spec apart from a sensor name."""
     token = token.strip()
     return bool(_RELATIVE_RE.match(token) or _DATE_RE.match(token) or _DATE_RANGE_RE.match(token))
+
+
+def parse_duration(spec: str) -> float:
+    """Parse a bare duration like ``"30m"``/``"2h"``/``"5s"``/``"1d"`` into seconds."""
+    spec = spec.strip()
+    m = _RELATIVE_RE.match(spec)
+    if not m:
+        raise TimeSpecError(f"unrecognized duration {spec!r}; expected {DURATION_HELP}")
+    amount, unit = int(m.group(1)), m.group(2).lower()
+    seconds = _UNIT_SECONDS[unit] * amount
+    if seconds <= 0:
+        raise TimeSpecError(f"invalid duration: {spec!r}")
+    return float(seconds)
 
 
 def parse_time_spec(spec: str, now: Optional[float] = None) -> Tuple[float, float]:
@@ -42,12 +56,8 @@ def parse_time_spec(spec: str, now: Optional[float] = None) -> Tuple[float, floa
         now = time.time()
     spec = spec.strip()
 
-    m = _RELATIVE_RE.match(spec)
-    if m:
-        amount, unit = int(m.group(1)), m.group(2).lower()
-        seconds = _UNIT_SECONDS[unit] * amount
-        if seconds <= 0:
-            raise TimeSpecError(f"invalid duration: {spec!r}")
+    if _RELATIVE_RE.match(spec):
+        seconds = parse_duration(spec)
         return now - seconds, now
 
     m = _DATE_RANGE_RE.match(spec)
