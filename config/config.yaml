@@ -1,19 +1,23 @@
 # Ocean Monitoring Buoy Configuration
 
 sensors:
-  sample_interval_seconds: 60
+  # NOTE: currently set for the field test where only the USB temp sensor and
+  # the radio node are physically connected -- everything else below is
+  # disabled to cut log noise, and the interval is dropped to 10s for quick
+  # verification.
+  sample_interval_seconds: 10
   imu_sample_rate_hz: 100
   imu_sample_duration_seconds: 30
 
   depth_temp:
-    enabled: true
+    enabled: false
     i2c_bus: 1
     address: 0x76
     fluid_density: 1029.0  # seawater kg/m^3
     osr: 8192              # MS5837 oversampling
 
   imu:
-    enabled: true
+    enabled: false
     spi_bus: 0
     spi_device: 0
     spi_speed_hz: 1000000
@@ -28,13 +32,13 @@ sensors:
     vref: 3.3
 
   dissolved_oxygen:
-    enabled: true
+    enabled: false
     mcp3008_channel: 0
     cal_voltage_mv: 1600.0      # Voltage at 100% DO saturation
     cal_temperature_c: 25.0     # Calibration temperature
 
   salinity:
-    enabled: true
+    enabled: false
     mcp3008_channel: 1
     cell_constant: 1.0          # cm^-1
     reference_temperature_c: 25.0
@@ -42,7 +46,7 @@ sensors:
     circuit_gain: 1000.0        # ADC volts -> conductance scale (uS)
 
   leak:
-    enabled: true
+    enabled: false
     gpio: 17
     bouncetime_ms: 200
 
@@ -52,7 +56,7 @@ sensors:
   # background cache rather than converted on demand. /dev/ttyUSBn isn't
   # stable across replugs, so it's auto-discovered by USB vendor/product ID.
   usb_depth_temp:
-    enabled: false
+    enabled: true
     device: auto           # or an explicit path, e.g. /dev/ttyUSB2, to override
     vendor_id: 0x1A86       # CH341 USB-serial adapter
     product_id: 0x7523
@@ -60,7 +64,7 @@ sensors:
     stale_after_seconds: 30
 
 power:
-  enabled: true
+  enabled: false  # INA219 not connected for this field test
   i2c_bus: 1
   ina219_address: 0x40
   shunt_ohms: 0.1
