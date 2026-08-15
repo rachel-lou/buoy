@@ -47,7 +47,7 @@ class UsbDepthTempSensor(BaseSensor):
         device: str = "auto",
         vendor_id: int = 0x1A86,
         product_id: int = 0x7523,
-        baud: int = 9600,
+        baud: int = 115200,
         stale_after_seconds: float = 30.0,
         reconnect_delay_seconds: float = 3.0,
     ) -> None:

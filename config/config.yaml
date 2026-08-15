@@ -60,7 +60,7 @@ sensors:
     device: auto           # or an explicit path, e.g. /dev/ttyUSB2, to override
     vendor_id: 0x1A86       # CH341 USB-serial adapter
     product_id: 0x7523
-    baud: 9600              # confirm with `stty -F /dev/ttyUSBn -a` if unsure
+    baud: 115200            # confirmed against the actual board on 2026-08-15
     stale_after_seconds: 30
 
 power:
