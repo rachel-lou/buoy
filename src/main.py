@@ -10,6 +10,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from .comms import Packet
+from .comms.broadcast import SensorBroadcastService
 from .comms.heartbeat import HeartbeatService
 from .comms.radio import DataRequestService, IntervalControlService, OTAService, Radio
 from .comms.textquery import TextQueryService
@@ -131,6 +132,7 @@ class BuoyApp:
         self._interval_control_service = IntervalControlService(
             self._radio, self.set_sample_interval, self._logger
         )
+        self._broadcast_service = SensorBroadcastService(self._radio, self._logger)
         self._ota_service = OTAService(self._radio, data_cfg["ota_staging_path"], self._logger)
         self._heartbeat = HeartbeatService(
             self._radio,
@@ -425,6 +427,7 @@ class BuoyApp:
                     readings = self._collect_once()
                     if readings:
                         self._store.write_many(readings)
+                        self._broadcast_service.broadcast(readings)
                 except Exception as exc:  # noqa: BLE001
                     self._logger.error(
                         "collect_cycle_failed",
