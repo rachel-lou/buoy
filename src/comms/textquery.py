@@ -10,6 +10,7 @@ Command grammar (case-insensitive, leading verb word optional):
 
     [GET] <sensor|ALL> <timespec> [csv]
     [SET] INTERVAL <duration>
+    STATUS
 
 Examples::
 
@@ -17,6 +18,7 @@ Examples::
     TEMPERATURE 2026-08-13     -> summary of temperature readings on that UTC day
     SALINITY 6H CSV           -> raw salinity samples from the last 6 hours
     INTERVAL 30M              -> change the buoy's collection interval to 30 minutes
+    STATUS                    -> uptime, battery, memory/disk, DB size, sensor health
     HELP                      -> usage + currently known sensor names
 
 ``INTERVAL`` changes the same interval the main loop already sleeps for
@@ -129,6 +131,64 @@ def _format_raw_lines(rows: List[Dict[str, Any]], multi_sensor: bool) -> List[st
     return lines
 
 
+def _format_uptime(seconds: float) -> str:
+    seconds = int(seconds)
+    days, rem = divmod(seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, _ = divmod(rem, 60)
+    return f"{days}d{hours}h{minutes:02d}m" if days else f"{hours}h{minutes:02d}m"
+
+
+def _format_status_lines(status: Dict[str, Any]) -> List[str]:
+    lines = [f"uptime: {_format_uptime(status.get('uptime_seconds', 0))}"]
+
+    if not status.get("clock_sane", True):
+        lines.append("WARNING: system clock looks wrong -- timestamps may be mistimed")
+
+    battery_v = status.get("battery_voltage")
+    if battery_v is not None:
+        current = status.get("battery_current") or 0.0
+        flag = " LOW" if status.get("low_power") else ""
+        lines.append(f"battery: {battery_v:.2f}V {current:.2f}A{flag}")
+
+    memory = status.get("memory")
+    if memory:
+        lines.append(
+            f"mem: {memory['available_mb']:.0f}MB free / {memory['total_mb']:.0f}MB "
+            f"({memory['used_percent']:.0f}% used)"
+        )
+
+    disk = status.get("disk")
+    if disk:
+        lines.append(
+            f"disk: {disk['free_mb']:.0f}MB free / {disk['total_mb']:.0f}MB "
+            f"({disk['used_percent']:.0f}% used)"
+        )
+
+    db_size = status.get("db_size_mb")
+    row_count = status.get("row_count")
+    max_rows = status.get("max_rows")
+    if db_size is not None or row_count is not None:
+        size_part = f"{db_size:.1f}MB" if db_size is not None else "?"
+        if row_count is not None and max_rows:
+            rows_part = f"{row_count}/{max_rows} rows ({100.0 * row_count / max_rows:.0f}%)"
+        elif row_count is not None:
+            rows_part = f"{row_count} rows"
+        else:
+            rows_part = ""
+        lines.append(f"db: {size_part} {rows_part}".strip())
+
+    sensor_health = status.get("sensor_health") or {}
+    if sensor_health:
+        down = [name for name, ok in sensor_health.items() if not ok]
+        if down:
+            lines.append(f"sensors down: {', '.join(down)}")
+        else:
+            lines.append(f"sensors ok: {', '.join(sensor_health)}")
+
+    return lines
+
+
 class TextQueryService:
     """Answers plain-text data queries typed from a phone with a text reply."""
 
@@ -139,12 +199,14 @@ class TextQueryService:
         logger: logging.Logger,
         max_raw_rows: int = MAX_RAW_ROWS_PER_QUERY,
         set_interval: Optional[Callable[[float], float]] = None,
+        status_provider: Optional[Callable[[], Dict[str, Any]]] = None,
     ) -> None:
         self._radio = radio
         self._store = store
         self._logger = logger
         self._max_raw_rows = max_raw_rows
         self._set_interval = set_interval
+        self._status_provider = status_provider
 
     def attach(self) -> None:
         """Register this service as the radio's plain-text handler."""
@@ -184,6 +246,9 @@ class TextQueryService:
 
         if tokens[0].upper() == "HELP":
             return self._help_lines()
+
+        if tokens[0].upper() == "STATUS":
+            return self._handle_status_command()
 
         raw = False
         if tokens and tokens[-1].upper() in _RAW_FLAGS:
@@ -249,6 +314,15 @@ class TextQueryService:
         applied = self._set_interval(seconds)
         return [f"collection interval set to {applied:.0f}s"]
 
+    def _handle_status_command(self) -> List[str]:
+        if self._status_provider is None:
+            return ["status is not configured on this buoy"]
+        try:
+            status = self._status_provider()
+        except Exception as exc:  # noqa: BLE001
+            return [f"status error: {exc}"]
+        return _format_status_lines(status)
+
     def _usage_lines(self) -> List[str]:
         return [f"usage: <sensor|ALL> <{TIME_SPEC_HELP}> [csv]", "send HELP for details"]
 
@@ -263,4 +337,6 @@ class TextQueryService:
         ]
         if self._set_interval is not None:
             lines.append(f"[SET] INTERVAL <{DURATION_HELP}> -- change collection interval")
+        if self._status_provider is not None:
+            lines.append("STATUS -- uptime, battery, memory/disk, DB size, sensor health")
         return lines

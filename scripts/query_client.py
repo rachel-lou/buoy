@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Test client for the buoy's over-radio data queries.
 
-Two ways to use this:
+Three ways to use this:
 
 1. ``--demo`` -- runs the whole phone-query pipeline offline, in-process, with
    no hardware and no serial port. It wires two ``Radio`` instances together
@@ -12,7 +12,15 @@ Two ways to use this:
 
        python scripts/query_client.py --demo
 
-2. Real hardware -- point ``--port`` at a serial port connected to a second
+2. ``--replay-db`` -- runs a single text command through the real
+   ``TextQueryService`` against a real (or copied) SQLite store, with no
+   radio/serial transport at all. Useful for previewing exactly what a phone
+   would see for a query against real accumulated data when you don't have a
+   second Meshtastic node to test the transport itself::
+
+       sudo python3 scripts/query_client.py --replay-db /data/buoy.db --text "ALL 5M"
+
+3. Real hardware -- point ``--port`` at a serial port connected to a second
    Meshtastic node (paired on the same channel as the buoy's node, e.g. a
    laptop's USB LoRa dongle, or a phone running Termux with a USB/BLE-serial
    bridge) and send either a phone-style text command or a structured
@@ -245,10 +253,53 @@ def run_demo() -> None:
             store.close()
 
 
+class _RecordingTextRadio:
+    """Stand-in for ``Radio`` with no transport at all: just captures the
+    ``send_text`` calls a real ``TextQueryService`` reply would make.
+    """
+
+    def __init__(self) -> None:
+        self.sent: List[str] = []
+        self._handler = None
+
+    def register_text_handler(self, handler) -> None:
+        self._handler = handler
+
+    def send_text(self, text: str) -> bool:
+        self.sent.append(text)
+        return True
+
+    def deliver(self, text: str) -> None:
+        assert self._handler is not None, "attach() was never called"
+        self._handler(text)
+
+
+def run_replay(db_path: str, command: str) -> None:
+    """Run one text command through the real TextQueryService against a real
+    SQLite store, skipping the radio/serial transport entirely. Previews
+    exactly what a phone would see for that query against real accumulated
+    data, without needing a second Meshtastic node.
+    """
+    logger = _logger()
+    store = DataStore(db_path, logger)
+    try:
+        radio = _RecordingTextRadio()
+        TextQueryService(radio, store, logger).attach()
+        radio.deliver(command)
+        _print_text_reply(command, radio.sent)
+    finally:
+        store.close()
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--demo", action="store_true", help="Run the full query pipeline offline, no hardware required"
+    )
+    parser.add_argument(
+        "--replay-db",
+        metavar="PATH",
+        help="Run --text against a real SQLite store directly, no radio/serial transport (e.g. /data/buoy.db)",
     )
     parser.add_argument("--port", help="Serial port for a real paired Meshtastic node, e.g. COM5 or /dev/ttyUSB0")
     parser.add_argument("--baud", type=int, default=115200)
@@ -267,6 +318,10 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.demo:
         run_demo()
+        return 0
+
+    if args.replay_db:
+        run_replay(args.replay_db, args.text or "HELP")
         return 0
 
     if not args.port:

@@ -284,5 +284,81 @@ class TestIntervalCommand(unittest.TestCase):
         self.assertNotIn("INTERVAL", self._reply())
 
 
+class TestStatusCommand(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+        self.tmp.close()
+        self.store = DataStore(self.tmp.name, _silent_logger(), max_rows=10_000)
+        self.radio = _RecordingRadio()
+
+    def tearDown(self):
+        self.store.close()
+        os.unlink(self.tmp.name)
+
+    def _reply(self) -> str:
+        return "\n".join(self.radio.sent)
+
+    def _status_service(self, status):
+        service = TextQueryService(self.radio, self.store, _silent_logger(), status_provider=lambda: status)
+        service.attach()
+        return service
+
+    def test_status_reports_key_fields(self):
+        self._status_service(
+            {
+                "uptime_seconds": 3725,  # 1h02m05s
+                "battery_voltage": 12.34,
+                "battery_current": 0.45,
+                "low_power": False,
+                "memory": {"total_mb": 972.0, "available_mb": 812.0, "used_percent": 16.5},
+                "disk": {"total_mb": 30000.0, "free_mb": 14200.0, "used_percent": 52.7},
+                "db_size_mb": 128.4,
+                "row_count": 45213,
+                "max_rows": 500000,
+                "sensor_health": {"usb_depth_temp": True},
+                "clock_sane": True,
+            }
+        )
+        self.radio.deliver("STATUS")
+        reply = self._reply()
+        self.assertIn("uptime: 1h02m", reply)
+        self.assertIn("12.34V", reply)
+        self.assertIn("mem:", reply)
+        self.assertIn("disk:", reply)
+        self.assertIn("db:", reply)
+        self.assertIn("sensors ok: usb_depth_temp", reply)
+        self.assertNotIn("WARNING", reply)
+
+    def test_status_flags_insane_clock(self):
+        self._status_service({"uptime_seconds": 10, "clock_sane": False})
+        self.radio.deliver("STATUS")
+        self.assertIn("WARNING", self._reply())
+
+    def test_status_flags_unhealthy_sensor(self):
+        self._status_service({"uptime_seconds": 10, "sensor_health": {"usb_depth_temp": False}})
+        self.radio.deliver("STATUS")
+        self.assertIn("sensors down: usb_depth_temp", self._reply())
+
+    def test_status_without_provider_reports_unavailable(self):
+        service = TextQueryService(self.radio, self.store, _silent_logger())
+        service.attach()
+        self.radio.deliver("STATUS")
+        self.assertIn("not configured", self._reply())
+
+    def test_status_error_is_reported_cleanly(self):
+        def boom():
+            raise RuntimeError("sensor blew up")
+
+        service = TextQueryService(self.radio, self.store, _silent_logger(), status_provider=boom)
+        service.attach()
+        self.radio.deliver("STATUS")
+        self.assertIn("status error", self._reply())
+
+    def test_help_mentions_status_when_configured(self):
+        self._status_service({})
+        self.radio.deliver("HELP")
+        self.assertIn("STATUS", self._reply())
+
+
 if __name__ == "__main__":
     unittest.main()

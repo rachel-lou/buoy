@@ -23,6 +23,7 @@ from .sensors.salinity import SalinitySensor
 from .sensors.usb_depth_temp import UsbDepthTempSensor
 from .utils import configure_logging, load_config
 from .utils.power import PowerMonitor
+from .utils.system_status import clock_looks_sane, read_disk_info, read_file_size_mb, read_memory_info
 from .utils.watchdog import HardwareWatchdog, SystemdWatchdogNotifier
 
 MIN_SAMPLE_INTERVAL_SECONDS = 1.0
@@ -121,7 +122,11 @@ class BuoyApp:
         )
         self._data_service = DataRequestService(self._radio, self._store, self._logger)
         self._text_query_service = TextQueryService(
-            self._radio, self._store, self._logger, set_interval=self.set_sample_interval
+            self._radio,
+            self._store,
+            self._logger,
+            set_interval=self.set_sample_interval,
+            status_provider=self._build_status_payload,
         )
         self._interval_control_service = IntervalControlService(
             self._radio, self.set_sample_interval, self._logger
@@ -275,6 +280,7 @@ class BuoyApp:
         power = self._power.read() if self._power is not None else None
         battery_v = power.bus_voltage if power else None
         sensor_health = {s.name: bool(s.healthy) for s in self._sensors}
+        db_path = self._config["data"]["db_path"]
         return {
             "uptime_seconds": round(uptime, 3),
             "battery_voltage": battery_v,
@@ -283,6 +289,11 @@ class BuoyApp:
             "low_power": self._low_power,
             "sensor_health": sensor_health,
             "row_count": self._store.row_count(),
+            "max_rows": self._config["data"]["max_rows"],
+            "memory": read_memory_info(),
+            "disk": read_disk_info(os.path.dirname(db_path) or "."),
+            "db_size_mb": read_file_size_mb(db_path),
+            "clock_sane": clock_looks_sane(),
         }
 
     # ---- lifecycle --------------------------------------------------------
