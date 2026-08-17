@@ -15,8 +15,12 @@ apt-get update
 apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv \
     python3-yaml python3-numpy \
-    i2c-tools watchdog \
+    i2c-tools \
     git ca-certificates
+
+
+echo "[setup] disabling the OS watchdog daemon if present (conflicts with buoy's own watchdog)"
+systemctl disable --now watchdog 2>/dev/null || true
 
 echo "[setup] enabling SPI, I2C, UART"
 raspi-config nonint do_spi 0 || true
