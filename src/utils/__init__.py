@@ -11,7 +11,7 @@ from typing import Any, Dict, Iterable
 import yaml
 
 
-REQUIRED_TOP_LEVEL_KEYS = ("sensors", "power", "radio", "data", "watchdog", "logging")
+REQUIRED_TOP_LEVEL_KEYS = ("sensors", "power", "radio", "data", "service_watchdog", "logging")
 
 
 class JsonFormatter(logging.Formatter):

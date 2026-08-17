@@ -1,14 +1,11 @@
 """USB-serial depth/temperature board (MS5837-style, bridged over CH341 USB-serial).
 
-Unlike the on-board I2C ``DepthTempSensor``, this board runs its own firmware
-and streams lines continuously rather than being converted on demand. This
+This board runs its own firmware and streams lines continuously. This
 driver runs a background reader thread that keeps a "latest values" cache
 up to date as lines arrive; :meth:`read` just returns whatever's currently
 cached (or an error placeholder if it's gone stale), so it plugs into the
 existing polled-sensor model -- ``main.py`` calls ``read()`` on the buoy's
-normal collection cadence, same as every other sensor. That cadence is what
-will eventually describe a wake/collect/power-off duty cycle rather than a
-free-running loop, so no per-sensor cadence lives here.
+collection cadence, same as every other sensor. 
 
 The board enumerates as a generic CH341 USB-serial adapter, whose
 ``/dev/ttyUSBn`` path is not stable across reboots or replugs -- Linux assigns

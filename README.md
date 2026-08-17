@@ -124,6 +124,5 @@ yet.
 
 ## Safety
 
-* Hardware watchdog at `/dev/watchdog`, kicked every 30 s.
 * Leak sensor on GPIO 17 triggers graceful shutdown.
 * Battery below 11 V drops to low-power mode (300 s sampling).

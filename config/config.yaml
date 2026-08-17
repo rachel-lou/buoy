@@ -83,8 +83,9 @@ data:
   max_rows: 500000
   ota_staging_path: /opt/buoy/staging/update.py
 
-watchdog:
-  device: /dev/watchdog
+service_watchdog:
+  # No /dev/watchdog handling here -- this is systemd's per-service WatchdogSec=
+  # ping interval only. See src/utils/watchdog.py.
   kick_interval_seconds: 30
 
 logging:

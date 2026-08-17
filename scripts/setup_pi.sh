@@ -52,9 +52,4 @@ echo "[setup] installing systemd unit"
 install -m 0644 "$SRC_DIR/systemd/buoy.service" /etc/systemd/system/buoy.service
 systemctl daemon-reload
 
-echo "[setup] enabling hardware watchdog group access"
-if [[ -e /dev/watchdog ]]; then
-    chgrp dialout /dev/watchdog || true
-fi
-
 echo "[setup] done. Enable the service with: systemctl enable --now buoy.service"

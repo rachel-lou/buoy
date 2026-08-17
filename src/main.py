@@ -9,7 +9,6 @@ import threading
 import time
 from typing import Any, Dict, List, Optional
 
-from .comms import Packet
 from .comms.broadcast import SensorBroadcastService
 from .comms.heartbeat import HeartbeatService
 from .comms.radio import DataRequestService, IntervalControlService, OTAService, Radio
@@ -25,7 +24,7 @@ from .sensors.usb_depth_temp import UsbDepthTempSensor
 from .utils import configure_logging, load_config
 from .utils.power import PowerMonitor
 from .utils.system_status import clock_looks_sane, read_disk_info, read_file_size_mb, read_memory_info
-from .utils.watchdog import HardwareWatchdog, SystemdWatchdogNotifier
+from .utils.watchdog import SystemdWatchdogNotifier
 
 MIN_SAMPLE_INTERVAL_SECONDS = 1.0
 MAX_SAMPLE_INTERVAL_SECONDS = 86400.0
@@ -78,13 +77,8 @@ class BuoyApp:
             max_rows=int(data_cfg["max_rows"]),
         )
 
-        # Watchdog
-        wd_cfg = config["watchdog"]
-        self._watchdog = HardwareWatchdog(
-            self._logger,
-            device=wd_cfg["device"],
-            kick_interval_seconds=float(wd_cfg["kick_interval_seconds"]),
-        )
+
+        wd_cfg = config["service_watchdog"]
         self._systemd_watchdog = SystemdWatchdogNotifier(
             self._logger, interval_seconds=float(wd_cfg["kick_interval_seconds"])
         )
@@ -403,7 +397,6 @@ class BuoyApp:
     def run(self) -> int:
         """Run the main loop. Returns 0 on clean exit."""
         self._install_signal_handlers()
-        self._watchdog.arm()
         self._systemd_watchdog.start()
         if self._usb_depth_temp is not None:
             self._usb_depth_temp.start()
@@ -493,10 +486,6 @@ class BuoyApp:
             self._store.close()
         except Exception as exc:  # noqa: BLE001
             self._logger.error("store_close_failed", extra={"error": str(exc)})
-        try:
-            self._watchdog.disarm()
-        except Exception as exc:  # noqa: BLE001
-            self._logger.error("watchdog_disarm_failed", extra={"error": str(exc)})
         self._logger.info(
             "shutdown_complete",
             extra={"component": "main", "reason": self._shutdown_reason},
