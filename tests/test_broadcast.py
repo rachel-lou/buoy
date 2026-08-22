@@ -21,10 +21,13 @@ def _silent_logger() -> logging.Logger:
 
 
 class _RecordingRadio:
-    def __init__(self) -> None:
+    def __init__(self, fail: bool = False) -> None:
         self.sent = []
+        self._fail = fail
 
     def send_text(self, text: str) -> bool:
+        if self._fail:
+            return False
         self.sent.append(text)
         return True
 
@@ -64,6 +67,28 @@ class TestSensorBroadcastService(unittest.TestCase):
         now = time.time()
         self.service.broadcast([Reading(now, "temperature", 21.81, "C", 0)])
         self.assertRegex(self.radio.sent[0], r"\d{2}:\d{2}:\d{2}Z temperature=21\.810C")
+
+    def test_successful_broadcast_is_logged(self):
+        now = time.time()
+        readings = [Reading(now, "temperature", 21.81, "C", 0), Reading(now, "pressure", 1006.28, "mbar", 0)]
+        with self.assertLogs("tests.broadcast", level="INFO") as cm:
+            self.service.broadcast(readings)
+        record = next(r for r in cm.records if r.getMessage() == "broadcast_sent")
+        self.assertEqual(record.reading_count, 2)
+        self.assertEqual(record.chunk_count, 1)
+
+    def test_send_failure_is_logged_as_error_not_success(self):
+        radio = _RecordingRadio(fail=True)
+        service = SensorBroadcastService(radio, _silent_logger())
+        readings = [Reading(time.time(), "temperature", 21.81, "C", 0)]
+        with self.assertLogs("tests.broadcast", level="INFO") as cm:
+            service.broadcast(readings)
+        messages = [r.getMessage() for r in cm.records]
+        self.assertIn("broadcast_send_failed", messages)
+        self.assertNotIn("broadcast_sent", messages)
+        record = next(r for r in cm.records if r.getMessage() == "broadcast_send_failed")
+        self.assertEqual(record.failed_chunks, 1)
+        self.assertEqual(radio.sent, [])
 
 
 if __name__ == "__main__":

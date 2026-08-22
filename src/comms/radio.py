@@ -13,13 +13,24 @@ from typing import Any, Callable, Dict, List, Optional
 
 from . import Packet
 
+try:
+    from ..utils.usb_discovery import discover_usb_serial_device
+except (ImportError, ValueError):  # tests put src/ on sys.path directly
+    from utils.usb_discovery import discover_usb_serial_device  # type: ignore
+
 
 class Radio:
-    """Line-oriented packet radio bound to a UART serial port.
+    """Line-oriented packet radio bound to a serial port.
 
     Operates a background reader thread that decodes incoming packets and
     dispatches them to registered handlers. Outgoing writes are mutex-locked
     to prevent interleaving between sender threads.
+
+    ``device`` may be an explicit path (e.g. a fixed GPIO UART like
+    ``/dev/ttyS0``, stable because it's not USB-enumerated) or ``"auto"`` to
+    discover a USB-connected node by vendor/product ID instead -- necessary
+    when the radio is connected over USB, since that path isn't stable
+    across reboots/replugs the way a wired GPIO UART is.
     """
 
     def __init__(
@@ -27,12 +38,16 @@ class Radio:
         serial_module,
         logger: logging.Logger,
         device: str = "/dev/ttyS0",
+        vendor_id: Optional[int] = None,
+        product_id: Optional[int] = None,
         baud: int = 115200,
         read_timeout_seconds: float = 0.5,
     ) -> None:
         self._serial_module = serial_module
         self._logger = logger
-        self._device = device
+        self._configured_device = device
+        self._vendor_id = vendor_id
+        self._product_id = product_id
         self._baud = baud
         self._read_timeout = read_timeout_seconds
         self._serial = None
@@ -43,15 +58,27 @@ class Radio:
         self._text_handler: Optional[Callable[[str], None]] = None
         self._open()
 
+    def _resolve_device(self) -> Optional[str]:
+        if self._configured_device and self._configured_device != "auto":
+            return self._configured_device
+        if self._vendor_id is None or self._product_id is None:
+            return None
+        return discover_usb_serial_device(self._serial_module, self._vendor_id, self._product_id, self._logger)
+
     def _open(self) -> None:
+        device = self._resolve_device()
+        if not device:
+            self._serial = None
+            self._logger.error("radio_open_failed", extra={"error": "no matching device found"})
+            return
         try:
             self._serial = self._serial_module.Serial(
-                port=self._device,
+                port=device,
                 baudrate=self._baud,
                 timeout=self._read_timeout,
             )
             self._logger.info(
-                "radio_open", extra={"component": "radio", "device": self._device}
+                "radio_open", extra={"component": "radio", "device": device}
             )
         except Exception as exc:  # noqa: BLE001
             self._serial = None

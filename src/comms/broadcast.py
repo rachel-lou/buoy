@@ -1,5 +1,4 @@
-"""Uplain-text sensor broadcast.
-
+"""plain-text sensor broadcast.
 readings go out on the
 channel as plain text for any Meshtastic node to see -- but driven by the
 buoy's own collection cycle instead of a standalone script, and reusing the
@@ -42,8 +41,17 @@ class SensorBroadcastService:
             return
         lines = _format_broadcast_lines(readings)
         chunks, truncated = chunk_lines(lines)
-        for chunk in chunks:
-            self._radio.send_text(chunk)
+        failed = sum(1 for chunk in chunks if not self._radio.send_text(chunk))
+        if failed:
+            self._logger.error(
+                "broadcast_send_failed",
+                extra={"component": "broadcast", "failed_chunks": failed, "chunk_count": len(chunks)},
+            )
+        else:
+            self._logger.info(
+                "broadcast_sent",
+                extra={"component": "broadcast", "reading_count": len(readings), "chunk_count": len(chunks)},
+            )
         if truncated:
             self._logger.warning(
                 "broadcast_truncated",

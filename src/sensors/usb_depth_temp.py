@@ -28,6 +28,11 @@ from typing import List, Optional, Tuple
 
 from . import BaseSensor, QUALITY_ERROR, QUALITY_GOOD, Reading
 
+try:
+    from ..utils.usb_discovery import discover_usb_serial_device
+except (ImportError, ValueError):  # tests put src/ on sys.path directly
+    from utils.usb_discovery import discover_usb_serial_device  # type: ignore
+
 _LINE_RE = re.compile(
     r"Temperature:\s*([-\d.]+)\s*,\s*Pressure:\s*([-\d.]+)\s*kPa\s*,\s*Deep:\s*([-\d.]+)\s*m",
     re.IGNORECASE,
@@ -93,15 +98,7 @@ class UsbDepthTempSensor(BaseSensor):
     def _discover_device(self) -> Optional[str]:
         if self._configured_device and self._configured_device != "auto":
             return self._configured_device
-        try:
-            ports = self._serial_module.tools.list_ports.comports()
-        except Exception as exc:  # noqa: BLE001
-            self.logger.error("usb_depth_temp_discover_failed", extra={"error": str(exc)})
-            return None
-        for port in ports:
-            if getattr(port, "vid", None) == self._vendor_id and getattr(port, "pid", None) == self._product_id:
-                return port.device
-        return None
+        return discover_usb_serial_device(self._serial_module, self._vendor_id, self._product_id, self.logger)
 
     def _open_serial(self) -> bool:
         device = self._discover_device()

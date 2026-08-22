@@ -73,7 +73,15 @@ power:
   low_power_sample_interval_seconds: 300
 
 radio:
-  device: /dev/ttyS0
+  # The Meshtastic node is connected over USB (a CP2102 USB-UART bridge), not
+  # wired to the Pi's GPIO UART pins -- so, like usb_depth_temp, its
+  # /dev/ttyUSBn path isn't stable and needs auto-discovery by USB
+  # vendor/product ID rather than a fixed path. Set device to an explicit
+  # path (e.g. /dev/ttyS0) instead of "auto" only if it's ever wired directly
+  # to the GPIO UART pins.
+  device: auto
+  vendor_id: 0x10C4    # Silicon Labs CP2102 USB-UART bridge
+  product_id: 0xEA60
   baud: 115200
   read_timeout_seconds: 0.5
   heartbeat_interval_seconds: 300

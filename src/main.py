@@ -111,7 +111,9 @@ class BuoyApp:
         self._radio = Radio(
             self._hw["serial"],
             self._logger,
-            device=radio_cfg["device"],
+            device=radio_cfg.get("device", "auto"),
+            vendor_id=int(radio_cfg["vendor_id"]) if "vendor_id" in radio_cfg else None,
+            product_id=int(radio_cfg["product_id"]) if "product_id" in radio_cfg else None,
             baud=int(radio_cfg["baud"]),
             read_timeout_seconds=float(radio_cfg["read_timeout_seconds"]),
         )

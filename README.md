@@ -12,7 +12,7 @@ Embedded data acquisition system for an autonomous ocean monitoring buoy running
 | DFRobot Gravity DO | MCP3008 ch 0 | analog |
 | Conductivity probe | MCP3008 ch 1 | analog |
 | Leak sensor | GPIO 17 (pull-up) | active low |
-| Meshtastic LoRa node | UART /dev/ttyS0 | 115200 baud |
+| Meshtastic LoRa node | USB (CP2102, auto-discovered) | 115200 baud |
 | INA219 battery monitor | I2C bus 1 | 0x40 |
 
 ## SSH into the pi
