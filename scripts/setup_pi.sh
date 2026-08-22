@@ -19,7 +19,7 @@ apt-get install -y --no-install-recommends \
     git ca-certificates
 
 
-echo "[setup] disabling the OS watchdog daemon if present (conflicts with buoy's own watchdog)"
+echo "[setup] disabling the OS watchdog daemon if present (conflicts with systemd's  /dev/watchdog ownership)"
 systemctl disable --now watchdog 2>/dev/null || true
 
 echo "[setup] enabling SPI, I2C, UART"
