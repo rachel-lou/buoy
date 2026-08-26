@@ -2,10 +2,8 @@
 
 sensors:
   # NOTE: currently set for the field test where only the USB temp sensor and
-  # the radio node are physically connected -- everything else below is
-  # disabled to cut log noise, and the interval is dropped to 10s for quick
-  # verification.
-  sample_interval_seconds: 10
+  # the radio node are physically connected.
+  sample_interval_seconds: 3600  # wake, sample, and broadcast every 30 minutes
   imu_sample_rate_hz: 100
   imu_sample_duration_seconds: 30
 
