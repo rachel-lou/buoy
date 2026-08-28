@@ -37,6 +37,7 @@ planned WiFi bulk sync are the intended path for full history.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -56,6 +57,11 @@ _HEADER_RESERVE = len("[99/99] ")
 
 _LEADING_VERBS = {"GET", "QUERY", "DATA", "FETCH"}
 _RAW_FLAGS = {"CSV", "RAW"}
+
+# The Meshtastic Serial Module (TEXTMSG mode) prefixes each incoming line with
+# the sending node's shortName, e.g. "81e0: STATUS" -- strip that before
+# parsing so the sender's name isn't mistaken for the first command token.
+_SENDER_PREFIX_RE = re.compile(r"^\S+:\s*")
 
 
 def chunk_lines(
@@ -214,8 +220,9 @@ class TextQueryService:
 
     def _handle(self, text: str) -> None:
         self._logger.info("text_query_received", extra={"component": "textquery", "text": text})
+        command_text = _SENDER_PREFIX_RE.sub("", text, count=1)
         try:
-            reply_lines = self._build_reply(text)
+            reply_lines = self._build_reply(command_text)
         except Exception as exc:  # noqa: BLE001
             self._logger.error("text_query_failed", extra={"error": str(exc), "text": text})
             reply_lines = ["error handling query; send HELP for syntax"]
