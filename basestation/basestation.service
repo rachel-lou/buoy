@@ -1,0 +1,19 @@
+[Unit]
+Description=Meshtastic Basestation Logger
+After=multi-user.target
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+Environment=BASESTATION_DEVICE=/dev/ttyUSB0
+Environment=BASESTATION_BAUD=115200
+Environment=BASESTATION_LOG_DIR=/var/log/basestation
+ExecStart=/usr/bin/python3 /opt/basestation/basestation.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=basestation
+
+[Install]
+WantedBy=multi-user.target
