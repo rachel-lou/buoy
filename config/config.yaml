@@ -3,7 +3,7 @@
 sensors:
   # NOTE: currently set for the field test where only the USB temp sensor and
   # the radio node are physically connected.
-  sample_interval_seconds: 3600  # wake, sample, and broadcast every 30 minutes
+  sample_interval_seconds: 30  # wake, sample, and broadcast every 30 minutes
   imu_sample_rate_hz: 100
   imu_sample_duration_seconds: 30
 
