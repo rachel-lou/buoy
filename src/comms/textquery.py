@@ -213,6 +213,7 @@ class TextQueryService:
         self._radio.register_text_handler(self._handle)
 
     def _handle(self, text: str) -> None:
+        self._logger.info("text_query_received", extra={"component": "textquery", "text": text})
         try:
             reply_lines = self._build_reply(text)
         except Exception as exc:  # noqa: BLE001
@@ -223,13 +224,25 @@ class TextQueryService:
     def _send_lines(self, lines: List[str]) -> None:
         chunks, truncated = chunk_lines(lines)
         total = len(chunks) + (1 if truncated else 0)
+        failed = 0
         for i, body in enumerate(chunks, start=1):
             header = f"[{i}/{total}] " if total > 1 else ""
-            self._radio.send_text(header + body)
+            if not self._radio.send_text(header + body):
+                failed += 1
         if truncated:
-            self._radio.send_text(
+            if not self._radio.send_text(
                 f"[{total}/{total}] truncated at {MAX_TEXT_REPLY_CHUNKS} msgs; "
                 "narrow the time range, or wait for wifi sync"
+            ):
+                failed += 1
+        if failed:
+            self._logger.error(
+                "text_query_reply_failed",
+                extra={"component": "textquery", "failed_chunks": failed, "chunk_count": total},
+            )
+        else:
+            self._logger.info(
+                "text_query_handled", extra={"component": "textquery", "chunk_count": total}
             )
 
     def _build_reply(self, text: str) -> List[str]:
