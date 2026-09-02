@@ -15,8 +15,12 @@ apt-get update
 apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv \
     python3-yaml python3-numpy \
-    i2c-tools watchdog \
+    i2c-tools \
     git ca-certificates
+
+
+echo "[setup] disabling the OS watchdog daemon if present (conflicts with systemd's  /dev/watchdog ownership)"
+systemctl disable --now watchdog 2>/dev/null || true
 
 echo "[setup] enabling SPI, I2C, UART"
 raspi-config nonint do_spi 0 || true
@@ -47,10 +51,5 @@ install -m 0644 "$SRC_DIR/config/config.yaml" /etc/buoy/config.yaml
 echo "[setup] installing systemd unit"
 install -m 0644 "$SRC_DIR/systemd/buoy.service" /etc/systemd/system/buoy.service
 systemctl daemon-reload
-
-echo "[setup] enabling hardware watchdog group access"
-if [[ -e /dev/watchdog ]]; then
-    chgrp dialout /dev/watchdog || true
-fi
 
 echo "[setup] done. Enable the service with: systemctl enable --now buoy.service"

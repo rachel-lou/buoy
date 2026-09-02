@@ -116,7 +116,7 @@ class SalinitySensor(BaseSensor):
         except Exception as exc:  # noqa: BLE001
             self.logger.warning(
                 "temp_provider_failed",
-                extra={"module": self.name, "error": str(exc)},
+                extra={"component": self.name, "error": str(exc)},
             )
             return None
 

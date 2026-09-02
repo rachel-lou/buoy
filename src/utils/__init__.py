@@ -11,27 +11,31 @@ from typing import Any, Dict, Iterable
 import yaml
 
 
-REQUIRED_TOP_LEVEL_KEYS = ("sensors", "power", "radio", "data", "watchdog", "logging")
+REQUIRED_TOP_LEVEL_KEYS = ("sensors", "power", "radio", "data", "service_watchdog", "logging")
 
 
 class JsonFormatter(logging.Formatter):
     """A minimal structured JSON log formatter."""
 
     def format(self, record: logging.LogRecord) -> str:
+        # Call sites tag their log line with a logical subsystem/sensor name via
+        # extra={"component": ...} rather than "module" -- "module" is a LogRecord
+        # attribute the stdlib already populates from the calling file, and passing
+        # it through extra= raises a KeyError the moment the call actually fires.
         base: Dict[str, Any] = {
             "timestamp": time.strftime(
                 "%Y-%m-%dT%H:%M:%S", time.gmtime(record.created)
             )
             + f".{int((record.created % 1) * 1000):03d}Z",
             "level": record.levelname,
-            "module": getattr(record, "module", record.name),
+            "module": getattr(record, "component", None) or record.module,
             "message": record.getMessage(),
         }
         for key, value in record.__dict__.items():
             if key in {
                 "name", "msg", "args", "levelname", "levelno", "pathname", "filename",
-                "module", "exc_info", "exc_text", "stack_info", "lineno", "funcName",
-                "created", "msecs", "relativeCreated", "thread", "threadName",
+                "module", "component", "exc_info", "exc_text", "stack_info", "lineno",
+                "funcName", "created", "msecs", "relativeCreated", "thread", "threadName",
                 "processName", "process", "asctime", "taskName",
             }:
                 continue

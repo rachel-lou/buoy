@@ -10,13 +10,15 @@ import sys
 import tempfile
 import time
 import unittest
+import zlib
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from comms import Packet  # noqa: E402
 from comms.heartbeat import HeartbeatService  # noqa: E402
-from comms.radio import DataRequestService, OTAService, Radio  # noqa: E402
+from comms.radio import DataRequestService, IntervalControlService, OTAService, Radio  # noqa: E402
 
 
 def _silent_logger() -> logging.Logger:
@@ -83,10 +85,11 @@ class _FakeSerial:
         pass
 
 
-def _radio_module_with_fake():
+def _radio_module_with_fake(ports=None):
     module = MagicMock()
     instance = _FakeSerial()
     module.Serial = MagicMock(return_value=instance)
+    module.tools.list_ports.comports = MagicMock(return_value=ports or [])
     return module, instance
 
 
@@ -126,6 +129,70 @@ class TestRadio(unittest.TestCase):
             while time.time() < deadline and b"nack" not in bytes(fake.tx):
                 time.sleep(0.05)
             self.assertIn(b"nack", bytes(fake.tx))
+        finally:
+            radio.stop()
+
+    def test_send_text_writes_plain_unwrapped_line(self):
+        module, fake = _radio_module_with_fake()
+        radio = Radio(module, _silent_logger(), device="/dev/null", baud=115200)
+        self.assertTrue(radio.send_text("ALL 2H"))
+        self.assertEqual(bytes(fake.tx), b"ALL 2H\n")
+        radio.stop()
+
+    def test_non_json_line_is_routed_to_text_handler(self):
+        module, fake = _radio_module_with_fake()
+        radio = Radio(module, _silent_logger(), device="/dev/null", baud=115200)
+        received = []
+        radio.register_text_handler(lambda t: received.append(t))
+        radio.start()
+        try:
+            fake.rx.extend(b"ALL 2H\n")
+            deadline = time.time() + 2.0
+            while time.time() < deadline and not received:
+                time.sleep(0.05)
+            self.assertEqual(received, ["ALL 2H"])
+        finally:
+            radio.stop()
+
+    def test_non_json_line_without_handler_is_ignored(self):
+        module, fake = _radio_module_with_fake()
+        radio = Radio(module, _silent_logger(), device="/dev/null", baud=115200)
+        radio.start()
+        try:
+            fake.rx.extend(b"ALL 2H\n")
+            time.sleep(0.3)
+            # No text handler registered: nothing should be transmitted back.
+            self.assertEqual(bytes(fake.tx), b"")
+        finally:
+            radio.stop()
+
+    def test_auto_discovers_by_vid_pid(self):
+        ports = [
+            SimpleNamespace(device="/dev/ttyUSB0", vid=0x1A86, pid=0x7523),  # unrelated CH341 device
+            SimpleNamespace(device="/dev/ttyUSB1", vid=0x10C4, pid=0xEA60),  # the radio's CP2102
+        ]
+        module, fake = _radio_module_with_fake(ports=ports)
+        radio = Radio(module, _silent_logger(), device="auto", vendor_id=0x10C4, product_id=0xEA60)
+        try:
+            module.Serial.assert_called_once()
+            self.assertEqual(module.Serial.call_args.kwargs["port"], "/dev/ttyUSB1")
+        finally:
+            radio.stop()
+
+    def test_explicit_device_skips_discovery(self):
+        module, fake = _radio_module_with_fake()
+        radio = Radio(module, _silent_logger(), device="/dev/ttyS0", baud=115200)
+        try:
+            module.tools.list_ports.comports.assert_not_called()
+        finally:
+            radio.stop()
+
+    def test_auto_discovery_finds_nothing_does_not_crash(self):
+        module, fake = _radio_module_with_fake(ports=[])
+        radio = Radio(module, _silent_logger(), device="auto", vendor_id=0x10C4, product_id=0xEA60)
+        try:
+            module.Serial.assert_not_called()
+            self.assertFalse(radio.send_text("hello"))
         finally:
             radio.stop()
 
@@ -184,6 +251,98 @@ class TestDataRequestService(unittest.TestCase):
         self.assertEqual(response.type, "data_response")
         self.assertEqual(response.payload["count"], 1)
         self.assertEqual(response.payload["encoding"], "zlib+base64")
+
+    def test_until_timestamp_is_forwarded_to_store(self):
+        radio = MagicMock()
+        radio.send = MagicMock(return_value=True)
+        radio.register_handler = MagicMock()
+
+        store = MagicMock()
+        store.query = MagicMock(return_value=[])
+
+        svc = DataRequestService(radio, store, _silent_logger())
+        svc.attach()
+        handler = radio.register_handler.call_args.args[1]
+
+        handler(Packet.build("data_request", {"since_timestamp": 10.0, "until_timestamp": 20.0, "sensor": "depth"}))
+        store.query.assert_called_once_with(since_timestamp=10.0, until_timestamp=20.0, sensor="depth", limit=1000)
+
+    def test_row_limit_is_capped_server_side(self):
+        radio = MagicMock()
+        radio.send = MagicMock(return_value=True)
+        radio.register_handler = MagicMock()
+
+        store = MagicMock()
+        store.query = MagicMock(return_value=[])
+
+        svc = DataRequestService(radio, store, _silent_logger(), max_query_rows=500)
+        svc.attach()
+        handler = radio.register_handler.call_args.args[1]
+
+        handler(Packet.build("data_request", {"limit": 999999}))
+        self.assertEqual(store.query.call_args.kwargs["limit"], 500)
+
+    def test_large_response_is_chunked_and_reassembles(self):
+        radio = MagicMock()
+        sent = []
+        radio.send = MagicMock(side_effect=lambda p: sent.append(p) or True)
+        radio.register_handler = MagicMock()
+
+        rows = [{"id": i, "sensor": "depth", "value": float(i)} for i in range(200)]
+        store = MagicMock()
+        store.query = MagicMock(return_value=rows)
+
+        svc = DataRequestService(radio, store, _silent_logger(), max_chunk_base64_chars=64)
+        svc.attach()
+        handler = radio.register_handler.call_args.args[1]
+
+        handler(Packet.build("data_request", {"sensor": "depth", "limit": 500}))
+        self.assertGreater(len(sent), 1)
+
+        request_ids = {p.payload["request_id"] for p in sent}
+        self.assertEqual(len(request_ids), 1)
+        chunk_count = sent[0].payload["chunk_count"]
+        self.assertEqual(chunk_count, len(sent))
+        for index, pkt in enumerate(sent):
+            self.assertEqual(pkt.payload["chunk_index"], index)
+
+        data_b64 = "".join(p.payload["data"] for p in sent)
+        decompressed = zlib.decompress(base64.b64decode(data_b64))
+        body = json.loads(decompressed)
+        self.assertEqual(body["rows"], rows)
+
+
+class TestIntervalControlService(unittest.TestCase):
+    def test_valid_request_applies_and_acks(self):
+        radio = MagicMock()
+        sent = []
+        radio.send = MagicMock(side_effect=lambda p: sent.append(p) or True)
+        radio.register_handler = MagicMock()
+
+        set_interval = MagicMock(return_value=1800.0)
+        svc = IntervalControlService(radio, set_interval, _silent_logger())
+        svc.attach()
+        handler = radio.register_handler.call_args.args[1]
+
+        handler(Packet.build("set_interval", {"interval_seconds": 1800}))
+        set_interval.assert_called_once_with(1800.0)
+        self.assertEqual(sent[0].type, "ack")
+        self.assertEqual(sent[0].payload["interval_seconds"], 1800.0)
+
+    def test_missing_interval_is_nacked(self):
+        radio = MagicMock()
+        sent = []
+        radio.send = MagicMock(side_effect=lambda p: sent.append(p) or True)
+        radio.register_handler = MagicMock()
+
+        set_interval = MagicMock()
+        svc = IntervalControlService(radio, set_interval, _silent_logger())
+        svc.attach()
+        handler = radio.register_handler.call_args.args[1]
+
+        handler(Packet.build("set_interval", {}))
+        set_interval.assert_not_called()
+        self.assertEqual(sent[0].type, "nack")
 
 
 class TestOTAService(unittest.TestCase):

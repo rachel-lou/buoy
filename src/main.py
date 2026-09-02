@@ -9,9 +9,10 @@ import threading
 import time
 from typing import Any, Dict, List, Optional
 
-from .comms import Packet
+from .comms.broadcast import SensorBroadcastService
 from .comms.heartbeat import HeartbeatService
-from .comms.radio import DataRequestService, OTAService, Radio
+from .comms.radio import DataRequestService, IntervalControlService, OTAService, Radio
+from .comms.textquery import TextQueryService
 from .data import DataStore
 from .sensors import Reading
 from .sensors.depth_temp import DepthTempSensor
@@ -19,9 +20,14 @@ from .sensors.dissolved_oxygen import DissolvedOxygenSensor, MCP3008Reader
 from .sensors.imu import IMUSensor
 from .sensors.leak import LeakSensor
 from .sensors.salinity import SalinitySensor
+from .sensors.usb_depth_temp import UsbDepthTempSensor
 from .utils import configure_logging, load_config
 from .utils.power import PowerMonitor
-from .utils.watchdog import HardwareWatchdog
+from .utils.system_status import clock_looks_sane, read_disk_info, read_file_size_mb, read_memory_info
+from .utils.watchdog import SystemdWatchdogNotifier
+
+MIN_SAMPLE_INTERVAL_SECONDS = 1.0
+MAX_SAMPLE_INTERVAL_SECONDS = 86400.0
 
 
 def _import_hardware_modules():
@@ -31,6 +37,7 @@ def _import_hardware_modules():
     import RPi.GPIO as GPIO  # type: ignore
     import smbus2  # type: ignore
     import serial  # type: ignore
+    import serial.tools.list_ports  # type: ignore  # noqa: F401 -- attaches .tools.list_ports
     import spidev  # type: ignore
 
     return {"GPIO": GPIO, "smbus2": smbus2, "serial": serial, "spidev": spidev}
@@ -70,35 +77,32 @@ class BuoyApp:
             max_rows=int(data_cfg["max_rows"]),
         )
 
-        # Watchdog
-        wd_cfg = config["watchdog"]
-        self._watchdog = HardwareWatchdog(
-            self._logger,
-            device=wd_cfg["device"],
-            kick_interval_seconds=float(wd_cfg["kick_interval_seconds"]),
+
+        wd_cfg = config["service_watchdog"]
+        self._systemd_watchdog = SystemdWatchdogNotifier(
+            self._logger, interval_seconds=float(wd_cfg["kick_interval_seconds"])
         )
 
         # Power monitor
-        pwr_cfg = config["power"]
-        self._power = PowerMonitor(
-            self._hw["smbus2"],
-            self._logger,
-            bus=int(pwr_cfg["i2c_bus"]),
-            address=int(pwr_cfg["ina219_address"]),
-            shunt_ohms=float(pwr_cfg["shunt_ohms"]),
-            max_expected_amps=float(pwr_cfg["max_expected_amps"]),
-        )
+        self._power = self._build_power_monitor()
 
         # Sensors
         self._depth_temp = self._build_depth_temp()
         self._imu = self._build_imu()
-        self._adc = self._build_mcp3008()
-        self._do = self._build_do()
-        self._salinity = self._build_salinity()
+        needs_adc = (
+            self._config["sensors"]["dissolved_oxygen"].get("enabled", True)
+            or self._config["sensors"]["salinity"].get("enabled", True)
+        )
+        self._adc = self._build_mcp3008() if needs_adc else None
+        self._do = self._build_do() if self._adc is not None else None
+        self._salinity = self._build_salinity() if self._adc is not None else None
         self._leak = self._build_leak()
+        self._usb_depth_temp = self._build_usb_depth_temp()
 
         self._sensors = [
-            s for s in (self._depth_temp, self._imu, self._do, self._salinity, self._leak)
+            s for s in (
+                self._depth_temp, self._imu, self._do, self._salinity, self._leak, self._usb_depth_temp,
+            )
             if s is not None
         ]
 
@@ -107,11 +111,24 @@ class BuoyApp:
         self._radio = Radio(
             self._hw["serial"],
             self._logger,
-            device=radio_cfg["device"],
+            device=radio_cfg.get("device", "auto"),
+            vendor_id=int(radio_cfg["vendor_id"]) if "vendor_id" in radio_cfg else None,
+            product_id=int(radio_cfg["product_id"]) if "product_id" in radio_cfg else None,
             baud=int(radio_cfg["baud"]),
             read_timeout_seconds=float(radio_cfg["read_timeout_seconds"]),
         )
         self._data_service = DataRequestService(self._radio, self._store, self._logger)
+        self._text_query_service = TextQueryService(
+            self._radio,
+            self._store,
+            self._logger,
+            set_interval=self.set_sample_interval,
+            status_provider=self._build_status_payload,
+        )
+        self._interval_control_service = IntervalControlService(
+            self._radio, self.set_sample_interval, self._logger
+        )
+        self._broadcast_service = SensorBroadcastService(self._radio, self._logger)
         self._ota_service = OTAService(self._radio, data_cfg["ota_staging_path"], self._logger)
         self._heartbeat = HeartbeatService(
             self._radio,
@@ -124,6 +141,19 @@ class BuoyApp:
             self._leak.set_callback(lambda: self.request_shutdown("leak_detected"))
 
     # ---- builders ---------------------------------------------------------
+    def _build_power_monitor(self) -> Optional[PowerMonitor]:
+        cfg = self._config["power"]
+        if not cfg.get("enabled", True):
+            return None
+        return PowerMonitor(
+            self._hw["smbus2"],
+            self._logger,
+            bus=int(cfg["i2c_bus"]),
+            address=int(cfg["ina219_address"]),
+            shunt_ohms=float(cfg["shunt_ohms"]),
+            max_expected_amps=float(cfg["max_expected_amps"]),
+        )
+
     def _build_depth_temp(self) -> Optional[DepthTempSensor]:
         cfg = self._config["sensors"]["depth_temp"]
         if not cfg.get("enabled", True):
@@ -205,17 +235,50 @@ class BuoyApp:
             bouncetime_ms=int(cfg["bouncetime_ms"]),
         )
 
+    def _build_usb_depth_temp(self) -> Optional[UsbDepthTempSensor]:
+        cfg = self._config["sensors"].get("usb_depth_temp", {})
+        if not cfg.get("enabled", False):
+            return None
+        return UsbDepthTempSensor(
+            self._hw["serial"],
+            self._logger,
+            device=cfg.get("device", "auto"),
+            vendor_id=int(cfg.get("vendor_id", 0x1A86)),
+            product_id=int(cfg.get("product_id", 0x7523)),
+            baud=int(cfg.get("baud", 9600)),
+            stale_after_seconds=float(cfg.get("stale_after_seconds", 30.0)),
+        )
+
     def _latest_temperature(self) -> Optional[float]:
         if self._depth_temp is None:
             return None
         return self._depth_temp.last_temperature_c
 
+    # ---- runtime control ---------------------------------------------------
+    def set_sample_interval(self, seconds: float) -> float:
+        """Change the normal (non-low-power) collection interval at runtime.
+
+        This is the knob that -- once the buoy is duty-cycled by external
+        power hardware instead of staying always-on -- will describe how
+        often the Pi wakes up, collects, and powers back down. For now,
+        while it stays on (e.g. for field testing), it's just the main
+        loop's sleep interval. Not persisted to config.yaml; reverts on
+        restart.
+        """
+        clamped = max(MIN_SAMPLE_INTERVAL_SECONDS, min(MAX_SAMPLE_INTERVAL_SECONDS, float(seconds)))
+        self._config["sensors"]["sample_interval_seconds"] = clamped
+        self._logger.info(
+            "sample_interval_changed", extra={"component": "main", "interval_seconds": clamped}
+        )
+        return clamped
+
     # ---- status / payloads ------------------------------------------------
     def _build_status_payload(self) -> Dict[str, Any]:
         uptime = time.monotonic() - self._start_time
-        power = self._power.read()
+        power = self._power.read() if self._power is not None else None
         battery_v = power.bus_voltage if power else None
         sensor_health = {s.name: bool(s.healthy) for s in self._sensors}
+        db_path = self._config["data"]["db_path"]
         return {
             "uptime_seconds": round(uptime, 3),
             "battery_voltage": battery_v,
@@ -224,6 +287,11 @@ class BuoyApp:
             "low_power": self._low_power,
             "sensor_health": sensor_health,
             "row_count": self._store.row_count(),
+            "max_rows": self._config["data"]["max_rows"],
+            "memory": read_memory_info(),
+            "disk": read_disk_info(os.path.dirname(db_path) or "."),
+            "db_size_mb": read_file_size_mb(db_path),
+            "clock_sane": clock_looks_sane(),
         }
 
     # ---- lifecycle --------------------------------------------------------
@@ -233,7 +301,7 @@ class BuoyApp:
             return
         self._shutdown_reason = reason
         self._logger.warning(
-            "shutdown_requested", extra={"module": "main", "reason": reason}
+            "shutdown_requested", extra={"component": "main", "reason": reason}
         )
         self._stop_event.set()
 
@@ -277,11 +345,13 @@ class BuoyApp:
             except Exception as exc:  # noqa: BLE001
                 self._logger.error(
                     "sensor_read_exception",
-                    extra={"module": sensor.name, "error": str(exc)},
+                    extra={"component": sensor.name, "error": str(exc)},
                 )
         return readings
 
     def _record_power(self) -> Optional[float]:
+        if self._power is None:
+            return None
         power = self._power.read()
         if power is None:
             return None
@@ -297,7 +367,7 @@ class BuoyApp:
         self._logger.info(
             "power",
             extra={
-                "module": "power",
+                "component": "power",
                 "voltage": power.bus_voltage,
                 "current": power.current,
                 "power": power.power,
@@ -315,7 +385,7 @@ class BuoyApp:
             self._logger.warning(
                 "low_power_mode_changed",
                 extra={
-                    "module": "main",
+                    "component": "main",
                     "low_power": self._low_power,
                     "battery_voltage": battery_v,
                 },
@@ -329,13 +399,17 @@ class BuoyApp:
     def run(self) -> int:
         """Run the main loop. Returns 0 on clean exit."""
         self._install_signal_handlers()
-        self._watchdog.arm()
+        self._systemd_watchdog.start()
+        if self._usb_depth_temp is not None:
+            self._usb_depth_temp.start()
         self._radio.start()
         self._data_service.attach()
+        self._text_query_service.attach()
+        self._interval_control_service.attach()
         self._ota_service.attach()
         self._heartbeat.start()
 
-        self._logger.info("buoy_started", extra={"module": "main"})
+        self._logger.info("buoy_started", extra={"component": "main"})
 
         try:
             while not self._stop_event.is_set():
@@ -348,10 +422,11 @@ class BuoyApp:
                     readings = self._collect_once()
                     if readings:
                         self._store.write_many(readings)
+                        self._broadcast_service.broadcast(readings)
                 except Exception as exc:  # noqa: BLE001
                     self._logger.error(
                         "collect_cycle_failed",
-                        extra={"module": "main", "error": str(exc)},
+                        extra={"component": "main", "error": str(exc)},
                     )
 
                 battery_v = self._record_power()
@@ -376,8 +451,12 @@ class BuoyApp:
         if not self._shutdown_reason:
             self._shutdown_reason = "normal"
         self._logger.info(
-            "shutdown_begin", extra={"module": "main", "reason": self._shutdown_reason}
+            "shutdown_begin", extra={"component": "main", "reason": self._shutdown_reason}
         )
+        try:
+            self._systemd_watchdog.stop()
+        except Exception as exc:  # noqa: BLE001
+            self._logger.error("systemd_watchdog_stop_failed", extra={"error": str(exc)})
         try:
             self._heartbeat.stop()
         except Exception as exc:  # noqa: BLE001
@@ -392,14 +471,16 @@ class BuoyApp:
             except Exception as exc:  # noqa: BLE001
                 self._logger.error(
                     "sensor_close_failed",
-                    extra={"module": sensor.name, "error": str(exc)},
+                    extra={"component": sensor.name, "error": str(exc)},
                 )
         try:
-            self._adc.close()
+            if self._adc is not None:
+                self._adc.close()
         except Exception as exc:  # noqa: BLE001
             self._logger.error("adc_close_failed", extra={"error": str(exc)})
         try:
-            self._power.close()
+            if self._power is not None:
+                self._power.close()
         except Exception as exc:  # noqa: BLE001
             self._logger.error("power_close_failed", extra={"error": str(exc)})
         try:
@@ -407,13 +488,9 @@ class BuoyApp:
             self._store.close()
         except Exception as exc:  # noqa: BLE001
             self._logger.error("store_close_failed", extra={"error": str(exc)})
-        try:
-            self._watchdog.disarm()
-        except Exception as exc:  # noqa: BLE001
-            self._logger.error("watchdog_disarm_failed", extra={"error": str(exc)})
         self._logger.info(
             "shutdown_complete",
-            extra={"module": "main", "reason": self._shutdown_reason},
+            extra={"component": "main", "reason": self._shutdown_reason},
         )
 
 

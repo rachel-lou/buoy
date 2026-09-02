@@ -11,6 +11,7 @@ PACKET_TYPES = {
     "heartbeat",
     "data_request",
     "data_response",
+    "set_interval",
     "ota",
     "ack",
     "nack",

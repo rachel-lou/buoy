@@ -1,19 +1,21 @@
 # Ocean Monitoring Buoy Configuration
 
 sensors:
-  sample_interval_seconds: 60
+  # NOTE: currently set for the field test where only the USB temp sensor and
+  # the radio node are physically connected.
+  sample_interval_seconds: 30  # wake, sample, and broadcast every 30 minutes
   imu_sample_rate_hz: 100
   imu_sample_duration_seconds: 30
 
   depth_temp:
-    enabled: true
+    enabled: false
     i2c_bus: 1
     address: 0x76
     fluid_density: 1029.0  # seawater kg/m^3
     osr: 8192              # MS5837 oversampling
 
   imu:
-    enabled: true
+    enabled: false
     spi_bus: 0
     spi_device: 0
     spi_speed_hz: 1000000
@@ -28,13 +30,13 @@ sensors:
     vref: 3.3
 
   dissolved_oxygen:
-    enabled: true
+    enabled: false
     mcp3008_channel: 0
     cal_voltage_mv: 1600.0      # Voltage at 100% DO saturation
     cal_temperature_c: 25.0     # Calibration temperature
 
   salinity:
-    enabled: true
+    enabled: false
     mcp3008_channel: 1
     cell_constant: 1.0          # cm^-1
     reference_temperature_c: 25.0
@@ -42,11 +44,25 @@ sensors:
     circuit_gain: 1000.0        # ADC volts -> conductance scale (uS)
 
   leak:
-    enabled: true
+    enabled: false
     gpio: 17
     bouncetime_ms: 200
 
+  # External MS5837-style depth/temp board bridged over USB-serial (CH341
+  # adapter). It free-runs and streams lines continuously; unlike the other
+  # sensors it's read on the shared sample_interval_seconds cadence via a
+  # background cache rather than converted on demand. /dev/ttyUSBn isn't
+  # stable across replugs, so it's auto-discovered by USB vendor/product ID.
+  usb_depth_temp:
+    enabled: true
+    device: auto           # or an explicit path, e.g. /dev/ttyUSB2, to override
+    vendor_id: 0x1A86       # CH341 USB-serial adapter
+    product_id: 0x7523
+    baud: 115200            # confirmed against the actual board on 2026-08-15
+    stale_after_seconds: 30
+
 power:
+  enabled: false  # INA219 not connected for this field test
   i2c_bus: 1
   ina219_address: 0x40
   shunt_ohms: 0.1
@@ -55,7 +71,15 @@ power:
   low_power_sample_interval_seconds: 300
 
 radio:
-  device: /dev/ttyS0
+  # The Meshtastic node is connected over USB (a CP2102 USB-UART bridge), not
+  # wired to the Pi's GPIO UART pins -- so, like usb_depth_temp, its
+  # /dev/ttyUSBn path isn't stable and needs auto-discovery by USB
+  # vendor/product ID rather than a fixed path. Set device to an explicit
+  # path (e.g. /dev/ttyS0) instead of "auto" only if it's ever wired directly
+  # to the GPIO UART pins.
+  device: auto
+  vendor_id: 0x10C4    # Silicon Labs CP2102 USB-UART bridge
+  product_id: 0xEA60
   baud: 115200
   read_timeout_seconds: 0.5
   heartbeat_interval_seconds: 300
@@ -65,8 +89,9 @@ data:
   max_rows: 500000
   ota_staging_path: /opt/buoy/staging/update.py
 
-watchdog:
-  device: /dev/watchdog
+service_watchdog:
+  # No /dev/watchdog handling here -- this is systemd's per-service WatchdogSec=
+  # ping interval only. See src/utils/watchdog.py.
   kick_interval_seconds: 30
 
 logging:

@@ -58,13 +58,13 @@ class PowerMonitor:
             self._write_register(_REG_CALIBRATION, cal)
             self._logger.info(
                 "power_monitor_init",
-                extra={"module": "power", "address": self._address, "cal": cal},
+                extra={"component": "power", "address": self._address, "cal": cal},
             )
         except Exception as exc:  # noqa: BLE001
             self._bus = None
             self._logger.error(
                 "power_monitor_open_failed",
-                extra={"module": "power", "error": str(exc)},
+                extra={"component": "power", "error": str(exc)},
             )
 
     def _write_register(self, reg: int, value: int) -> None:
@@ -94,7 +94,7 @@ class PowerMonitor:
         except Exception as exc:  # noqa: BLE001
             self._logger.error(
                 "power_monitor_read_failed",
-                extra={"module": "power", "error": str(exc)},
+                extra={"component": "power", "error": str(exc)},
             )
             return None
 
