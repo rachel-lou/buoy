@@ -2,13 +2,12 @@
 """
 Temperature charts for Caspar Cove field test #1, with NDBC 46014 reference.
 
-X-axis is elapsed_hr since deployment start (README says the buoy clock is
+X-axis is elapsed_hr since deployment start (README: the buoy clock is
 unreliable; elapsed time is the trustworthy axis). Deployment start is anchored
-to 10:00 AM PDT on Aug 30, 2026 == 17:00 UTC, which is also elapsed_hr=0 for the
+to 10:00 AM PDT on Aug 29, 2026 == 17:00 UTC, which is also elapsed_hr=0 for the
 NDBC series (see ndbc_46014_wtmp.csv).
 
 Run:  python3 plot_temp.py
-(uses the scratchpad venv if matplotlib isn't on the system python)
 """
 import os
 import pandas as pd
@@ -17,13 +16,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-buoy = pd.read_csv(os.path.join(HERE, "caspar_cove_wide.csv"))
-ndbc = pd.read_csv(os.path.join(HERE, "ndbc_46014_wtmp.csv"))
+ROOT = os.path.dirname(HERE)
+buoy = pd.read_csv(os.path.join(ROOT, "caspar_cove_wide.csv"))
+ndbc = pd.read_csv(os.path.join(ROOT, "ndbc_46014_wtmp.csv"))
 
 # keep only good-quality temperature samples (qf 0); qf 2 rows are zero-filled
 good = buoy[buoy["temp_qf"] == 0].copy()
 
-START_LABEL = "Aug 30, 2026 10:00 PDT"
+START_LABEL = "Aug 29, 2026 10:00 PDT"
 
 # ---- Chart 1: buoy temp vs NDBC 46014, full deployment ----
 fig, ax = plt.subplots(figsize=(12, 5.5))
@@ -45,7 +45,7 @@ fig.tight_layout()
 fig.savefig(os.path.join(HERE, "plot_temp_vs_ndbc.png"), dpi=130)
 plt.close(fig)
 
-# ---- Chart 2: zoom on the first 2 h where the buoy still reads ocean-like ----
+# ---- Chart 2: zoom on the first 2.5 h where the buoy still reads ocean-like ----
 early = good[good["elapsed_hr"] <= 2.5]
 ndbc_early = ndbc[ndbc["elapsed_hr"] <= 2.5]
 fig, ax = plt.subplots(figsize=(11, 5))
