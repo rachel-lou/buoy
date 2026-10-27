@@ -1,0 +1,23 @@
+[package]
+name = "buoy-rs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "buoy_rs"
+# staticlib: linked into the Meshtastic firmware. rlib: lets `cargo test` run on the host.
+crate-type = ["staticlib", "rlib"]
+
+[build-dependencies]
+cbindgen = { version = "0.29", default-features = false }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+debug = true # symbols only; doesn't affect flash size since the firmware link strips them
+
+[profile.dev]
+panic = "abort"
+opt-level = 1

@@ -1,0 +1,3 @@
+# Espressif's Rust fork (installed by `espup install`), needed for the Xtensa ESP32-S3.
+[toolchain]
+channel = "esp"

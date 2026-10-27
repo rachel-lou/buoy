@@ -1,0 +1,8 @@
+# Cross-compile for the ESP32-S3 (Heltec V3). Run host unit tests with:
+#   cargo test --target x86_64-unknown-linux-gnu
+[build]
+target = "xtensa-esp32s3-none-elf"
+
+[unstable]
+# Tier-3 target: core/alloc are built from source.
+build-std = ["core", "alloc"]

@@ -15,6 +15,16 @@ Embedded data acquisition system for an autonomous ocean monitoring buoy running
 | Meshtastic LoRa node | USB (CP2102, auto-discovered) | 115200 baud |
 | INA219 battery monitor | I2C bus 1 | 0x40 |
 
+## Meshtastic node firmware (Rust add-ons)
+
+`firmware/` builds stock Meshtastic for the Heltec V3 radio node with our own Rust code linked
+in. For setup, build, and flash steps, see [firmware/README.md](firmware/README.md). Quick version:
+
+```bash
+git submodule update --init --recursive && firmware/setup.sh
+cd firmware/meshtastic && pio run -e heltec-v3-buoy -t upload
+```
+
 ## SSH into the pi
 
 ```bash
