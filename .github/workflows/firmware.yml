@@ -38,7 +38,8 @@ jobs:
 
       - name: Rust host tests
         working-directory: firmware/buoy-rs
-        run: cargo +stable test --target "$(rustc +stable -vV | sed -n 's/^host: //p')"
+        run: |
+          cargo +stable test --target "$(rustc +stable -vV | sed -n 's/^host: //p')"
 
       - name: Link buoy code into Meshtastic
         run: firmware/setup.sh
