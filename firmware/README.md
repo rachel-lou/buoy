@@ -58,26 +58,34 @@ To add a feature, put the logic in Rust (`app.rs` or new modules). Add an `exter
 in `ffi.rs` only if C++ needs to call it, and a callback in `BuoyHostApi` only if Rust needs
 something from the firmware (radio, GPIO, I2C, …). C++ should stay thin glue.
 
-## One-time machine setup (Linux)
+## One-time machine setup (Linux or macOS)
 
-Tested on Ubuntu 24.04, x86_64.
+CI builds this on Ubuntu x86_64 and macOS Apple Silicon (`.github/workflows/firmware.yml`).
+
+**Serial port access (needed for flashing):**
+
+- **Linux** (needs sudo; log out and back in afterwards):
+  ```bash
+  sudo usermod -aG dialout $USER
+  curl -fsSL https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/system/99-platformio-udev.rules \
+    | sudo tee /etc/udev/rules.d/99-platformio-udev.rules
+  sudo udevadm control --reload-rules && sudo udevadm trigger
+  ```
+- **macOS:** run `xcode-select --install` once, for git and the C linker Rust's build scripts
+  need. Recent macOS has a built-in CP210x driver, so plugging in the board should create
+  `/dev/cu.usbserial-*`. If no such device appears, install Silicon Labs' "CP210x VCP" driver.
+
+**Toolchains (same on both):**
 
 ```bash
-# 1. Serial port access for flashing (needs sudo). Log out/in afterwards.
-sudo usermod -aG dialout $USER
-curl -fsSL https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/system/99-platformio-udev.rules \
-  | sudo tee /etc/udev/rules.d/99-platformio-udev.rules
-sudo udevadm control --reload-rules && sudo udevadm trigger
-
-# 2. PlatformIO Core, PINNED to 6.1.19 (see "Gotchas").
-#    Ubuntu's python3 lacks venv by default: either `sudo apt install python3.12-venv`
-#    and use `python3 -m venv`, or use uv as below (no sudo).
+# 1. PlatformIO Core, PINNED to 6.1.19 (see "Gotchas"). uv gives it its own Python venv,
+#    which avoids Ubuntu's missing python3-venv and macOS's system-Python restrictions.
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ~/.local/bin/uv venv --seed --python 3.12 ~/.platformio/penv
 ~/.local/bin/uv pip install --python ~/.platformio/penv/bin/python "platformio==6.1.19"
-export PATH="$HOME/.platformio/penv/bin:$PATH"     # add to ~/.bashrc
+export PATH="$HOME/.platformio/penv/bin:$PATH"     # add to ~/.bashrc or ~/.zshrc
 
-# 3. Rust + Espressif's Xtensa Rust toolchain (the ESP32-S3 is Xtensa, not RISC-V).
+# 2. Rust + Espressif's Xtensa Rust toolchain (the ESP32-S3 is Xtensa, not RISC-V).
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
 source ~/.cargo/env
 cargo install espup --locked
@@ -96,7 +104,7 @@ firmware/setup.sh                                  # after every fresh clone
 cd firmware/meshtastic
 pio run -e heltec-v3-buoy                          # build (first run ~5 min, downloads ESP-IDF)
 pio run -e heltec-v3-buoy -t upload                # flash over USB (keeps node settings)
-pio device monitor -b 115200                       # serial log
+pio device monitor -b 115200                       # serial log (Ctrl-C to quit)
 ```
 
 In the serial log you should see `[rust] buoy-rs: started` at boot and then
@@ -110,7 +118,8 @@ Rust unit tests run on the laptop, with no board needed:
 
 ```bash
 cd firmware/buoy-rs
-cargo +stable test --target x86_64-unknown-linux-gnu
+# .cargo/config.toml defaults to the ESP32 target, so name the laptop's own target explicitly
+cargo +stable test --target "$(rustc +stable -vV | sed -n 's/^host: //p')"
 ```
 
 ## Gotchas we hit

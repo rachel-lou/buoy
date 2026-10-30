@@ -10,7 +10,8 @@ mkdir -p meshtastic/src/modules/optional
 ln -sfn ../../../../module/Buoy meshtastic/src/modules/optional/Buoy
 
 # Keep the symlinks out of the submodule's `git status`.
-exclude="$(git -C meshtastic rev-parse --git-path info/exclude)"
+exclude="$(git -C meshtastic rev-parse --path-format=absolute --git-path info/exclude)"
+mkdir -p "$(dirname "$exclude")"
 for p in /variants/esp32s3/heltec_v3_buoy /src/modules/optional/; do
     grep -qxF "$p" "$exclude" || echo "$p" >> "$exclude"
 done
