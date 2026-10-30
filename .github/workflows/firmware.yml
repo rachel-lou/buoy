@@ -23,11 +23,11 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install PlatformIO 6.1.19
+      - name: Install PlatformIO (pioarduino 6.1.19)
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           ~/.local/bin/uv venv --seed --python 3.12 ~/.platformio/penv
-          ~/.local/bin/uv pip install --python ~/.platformio/penv/bin/python "platformio==6.1.19"
+          ~/.local/bin/uv pip install --python ~/.platformio/penv/bin/python "pioarduino==6.1.19"
           echo "$HOME/.platformio/penv/bin" >> "$GITHUB_PATH"
 
       - name: Install Rust + esp toolchain

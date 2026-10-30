@@ -78,11 +78,12 @@ CI builds this on Ubuntu x86_64 and macOS Apple Silicon (`.github/workflows/firm
 **Toolchains (same on both):**
 
 ```bash
-# 1. PlatformIO Core, PINNED to 6.1.19 (see "Gotchas"). uv gives it its own Python venv,
-#    which avoids Ubuntu's missing python3-venv and macOS's system-Python restrictions.
+# 1. PlatformIO Core as pioarduino's fork, PINNED to 6.1.19 (see "Gotchas"). It must live in
+#    ~/.platformio/penv. uv provides the venv, which avoids Ubuntu's missing python3-venv and
+#    macOS's system-Python restrictions.
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ~/.local/bin/uv venv --seed --python 3.12 ~/.platformio/penv
-~/.local/bin/uv pip install --python ~/.platformio/penv/bin/python "platformio==6.1.19"
+~/.local/bin/uv pip install --python ~/.platformio/penv/bin/python "pioarduino==6.1.19"
 export PATH="$HOME/.platformio/penv/bin:$PATH"     # add to ~/.bashrc or ~/.zshrc
 
 # 2. Rust + Espressif's Xtensa Rust toolchain (the ESP32-S3 is Xtensa, not RISC-V).
@@ -124,10 +125,16 @@ cargo +stable test --target "$(rustc +stable -vV | sed -n 's/^host: //p')"
 
 ## Gotchas we hit
 
-- **PlatformIO must be 6.1.19.** Meshtastic's pinned ESP32 platform (pioarduino 55.03.31x)
-  needs core ≥ 6.1.19 and pins SCons 4.8.1. Core 6.2.0 pins SCons 4.11.1. With 6.2.0 the two
-  keep deleting each other's SCons mid-build, and the link fails with
-  `ModuleNotFoundError: No module named 'SCons.Tool.FortranCommon'`. 6.1.18 is refused as too old.
+- **Install exactly `pioarduino==6.1.19` into `~/.platformio/penv`**, not `platformio` from
+  PyPI. Meshtastic's pinned ESP32 platform (pioarduino 55.03.311) pins SCons 4.8.1. During the
+  build it installs `pioarduino>=6.1.19` into `~/.platformio/penv` and runs a nested build from
+  there. If that resolves to 6.2.x (released Sept/Oct 2026, which pins SCons 4.11.1), the two
+  SCons versions evict each other mid-build, and the link fails with
+  `ModuleNotFoundError: No module named 'SCons.Tool.FortranCommon'`. Pre-installing 6.1.19
+  satisfies the platform's requirement, so it never upgrades. Revisit this when bumping the
+  Meshtastic submodule.
+  - If you already hit it: `uv pip uninstall --python ~/.platformio/penv/bin/python platformio pioarduino`,
+    then reinstall `pioarduino==6.1.19` as above.
 - **The stock `heltec-v3` env still builds** with the symlinks in place. The module compiles
   to nothing unless `BUOY_RUST` is defined, and only `heltec-v3-buoy` defines it.
 - The Rust lib is built with `build-std` (the Xtensa target is tier 3), `panic = "abort"`,
